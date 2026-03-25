@@ -1,0 +1,195 @@
+{
+  "name": "Tool - Ejecutar SQL",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.consulta_sql }}",
+        "options": {}
+      },
+      "id": "sql-inline-0003-0000-0000-000000000003",
+      "name": "Ejecutar SQL Inline",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -3360,
+        -1216
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const rows = $input.all().map(i => i.json);\nif (rows.length === 0) return [{json:{resultado:'ℹ️ La consulta no devolvió resultados.'}}];\nconst preview = rows.slice(0,10);\nreturn [{json:{resultado:`✅ Consulta ejecutada. Filas: ${rows.length}\\n\\n` + JSON.stringify(preview,null,2)}}];"
+      },
+      "id": "sql-inline-0004-0000-0000-000000000004",
+      "name": "Resultado SQL Inline",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3136,
+        -1216
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "sql-r1",
+              "name": "resultado",
+              "value": "=⛔ Consulta SQL rechazada. Solo se permiten sentencias SELECT de solo lectura.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "sql-inline-0005-0000-0000-000000000005",
+      "name": "SQL Rechazada",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3360,
+        -1024
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const q = ($json.consulta_sql ?? '').trim();\nconst normalized = q.toLowerCase();\nconst forbidden = ['insert','update','delete','drop','alter','truncate','grant','revoke','create'];\nconst hasForbidden = forbidden.some(w => new RegExp('\\\\b'+w+'\\\\b','i').test(normalized));\nconst isSelect = /^select\\b/i.test(normalized);\nreturn [{ json: { ...$json, sql_valida: Boolean(q) && isSelect && !hasForbidden } }];"
+      },
+      "id": "sql-inline-0001-0000-0000-000000000001",
+      "name": "Validar SQL Solo Lectura",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3808,
+        -1120
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "63d8c043-9ea0-499b-b1b2-61fbd0fa7714",
+      "name": "Ejecutar Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -4544,
+        -1840
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "sql-if-1",
+              "leftValue": "={{ $json.sql_valida }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          }
+        },
+        "options": {}
+      },
+      "id": "sql-inline-0002-0000-0000-000000000002",
+      "name": "¿SQL Válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -3584,
+        -1120
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Ejecutar Workflow": {
+      "main": [
+        [
+          {
+            "node": "Validar SQL Solo Lectura",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar SQL Inline": {
+      "main": [
+        [
+          {
+            "node": "Resultado SQL Inline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar SQL Solo Lectura": {
+      "main": [
+        [
+          {
+            "node": "¿SQL Válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿SQL Válida?": {
+      "main": [
+        [
+          {
+            "node": "Ejecutar SQL Inline",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "SQL Rechazada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "93dd4ac1-ad2f-4ac8-9a66-16022768718b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f5b03b15138dc35178a357541b8b254ab51ce8bbeabf497031c72421b8fcb7ee"
+  },
+  "id": "WF_TOOL_EJECUTAR_SQL_001",
+  "tags": [
+    {
+      "updatedAt": "2026-03-01T19:37:32.830Z",
+      "createdAt": "2026-03-01T19:37:32.830Z",
+      "id": "5014ny6hlFfltdsq",
+      "name": "Bryan Real Estate"
+    },
+    {
+      "updatedAt": "2026-03-11T00:22:54.729Z",
+      "createdAt": "2026-03-11T00:22:54.729Z",
+      "id": "rWw1J3dBOKSk924S",
+      "name": "Bryan Ulloa"
+    }
+  ]
+}

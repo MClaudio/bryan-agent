@@ -1,0 +1,842 @@
+{
+  "name": "Tool - Calendario",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "ml1",
+              "leftValue": "={{ $('Ejecutar Workflow').item.json.modo || 'agendar' }}",
+              "rightValue": "listar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "id": "1120b1a4-d679-4ed6-9780-902f06b57b11",
+      "name": "¿Modo Listar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        14304,
+        15440
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ld1",
+              "name": "dia_inicio",
+              "value": "={{ (() => { const wf = $('Ejecutar Workflow').item.json; const ref = DateTime.fromISO(wf.fecha_referencia || DateTime.now().toISO()).setZone('America/Guayaquil'); const rawFecha = wf.fecha_inicio; const dtRaw = rawFecha ? DateTime.fromISO(rawFecha, {zone: 'America/Guayaquil'}) : null; let dt; if (!dtRaw || dtRaw.year < ref.year || (dtRaw.year === ref.year && dtRaw.month < ref.month && Math.abs(dtRaw.month - ref.month) > 1)) { dt = ref.plus({ days: 1 }).startOf('day'); } else { dt = dtRaw.startOf('day'); } return dt.toISO(); })() }}",
+              "type": "string"
+            },
+            {
+              "id": "ld2",
+              "name": "dia_fin",
+              "value": "={{ (() => { const wf = $('Ejecutar Workflow').item.json; const ref = DateTime.fromISO(wf.fecha_referencia || DateTime.now().toISO()).setZone('America/Guayaquil'); const rawFecha = wf.fecha_inicio; const dtRaw = rawFecha ? DateTime.fromISO(rawFecha, {zone: 'America/Guayaquil'}) : null; let dt; if (!dtRaw || dtRaw.year < ref.year || (dtRaw.year === ref.year && dtRaw.month < ref.month && Math.abs(dtRaw.month - ref.month) > 1)) { dt = ref.plus({ days: 1 }).endOf('day'); } else { dt = dtRaw.endOf('day'); } return dt.toISO(); })() }}",
+              "type": "string"
+            },
+            {
+              "id": "ld3",
+              "name": "tipo_filtro",
+              "value": "={{ (String($('Ejecutar Workflow').item.json.tipo_evento || 'todos')).toLowerCase() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7b3f17a0-64da-416c-b749-dee9d087d0ac",
+      "name": "Calcular Día Consulta",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        14512,
+        15296
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list",
+          "cachedResultName": "primary"
+        },
+        "options": {}
+      },
+      "id": "306433af-1887-4d50-ad6a-e998eb95ef8c",
+      "name": "Listar Eventos Calendario",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        14768,
+        15120
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "6lAsoTQnqERlsZNq",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst wf = $('Ejecutar Workflow').item.json;\nconst dia = $('Calcular Día Consulta').item.json;\n\nconst diaInicio = new Date(dia.dia_inicio);\nconst diaFin = new Date(dia.dia_fin);\nconst tipoFiltro = String(dia.tipo_filtro || 'todos').toLowerCase();\nconst asesorPhone = (wf.telefono_asesor || '').trim();\n\nconst eventos = [];\n\nfor (const item of items) {\n  const ev = item.json;\n  const desc = ev.description || '';\n  const startRaw = ev.start?.dateTime || ev.start?.date;\n  if (!startRaw) continue;\n  const startDate = new Date(startRaw);\n  if (startDate < diaInicio || startDate > diaFin) continue;\n\n  if (asesorPhone) {\n    const m = desc.match(/\\[asesor:([^\\]]+)\\]/);\n    const phone = m ? m[1].trim() : '';\n    if (phone !== asesorPhone) continue;\n  }\n\n  let tipo = 'evento';\n  const mTipo = desc.match(/\\[tipo:([^\\]]+)\\]/i);\n  if (mTipo) tipo = mTipo[1].trim();\n  const tipoLower = tipo.toLowerCase();\n\n  if (tipoFiltro !== 'todos' && tipoLower !== tipoFiltro) continue;\n\n  const horaFormato = ev.start?.dateTime\n    ? new Date(ev.start.dateTime).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Guayaquil' })\n    : 'Todo el día';\n  const fechaFormato = new Date(startRaw).toLocaleDateString('es-EC', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Guayaquil' });\n\n  eventos.push({\n    hora: horaFormato,\n    fecha: fechaFormato,\n    tipo,\n    titulo: ev.summary || 'Sin título'\n  });\n}\n\nif (eventos.length === 0) {\n  const etiquetaTipo = tipoFiltro === 'todos' ? 'eventos' : `eventos de tipo ${tipoFiltro}`;\n  const fechaTexto = diaInicio.toLocaleDateString('es-EC', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Guayaquil' });\n  return [{ json: { resultado: `Para el ${fechaTexto} no tienes ${etiquetaTipo} registrados en tu calendario.` } }];\n}\n\n// Ordenar por hora\neventos.sort((a, b) => a.hora.localeCompare(b.hora));\n\nconst etiquetaTipo = tipoFiltro === 'todos' ? 'eventos' : `eventos de tipo ${tipoFiltro}`;\nconst fechaTexto = diaInicio.toLocaleDateString('es-EC', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Guayaquil' });\n\nlet texto = `Estos son tus ${etiquetaTipo} para el ${fechaTexto}:\\n\\n`;\nfor (const ev of eventos) {\n  texto += `- ${ev.hora} - ${ev.tipo}: ${ev.titulo}\\n`;\n}\n\nreturn [{ json: { resultado: texto.trim() } }];"
+      },
+      "id": "8a4aa37d-ba4c-4fe3-af78-c30450906729",
+      "name": "Filtrar Eventos Día y Tipo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        15024,
+        15120
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst datosEvento = $('Preparar Datos Evento1').item.json;\nconst busy = data.calendars?.primary?.busy ?? [];\n\nconst tipo = datosEvento.tipo_evento ?? 'Cita';\nconst horaBlqIni = datosEvento.hora_bloqueo_inicio ?? null;\nconst horaBlqFin = datosEvento.hora_bloqueo_fin ?? null;\n\nconst toHHMM = iso => new Date(iso).toLocaleTimeString('es-EC', {\n  hour: '2-digit', minute: '2-digit', timeZone: 'America/Guayaquil'\n});\n\nconst toFecha = iso => new Date(iso).toLocaleDateString('es-EC', {\n  weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',\n  timeZone: 'America/Guayaquil'\n});\n\n// Verificar restriccion horaria (solo para Cita y Reunion)\nif (horaBlqIni && horaBlqFin && ['Cita', 'Reunion'].includes(tipo)) {\n  const fechaEvento = new Date(datosEvento.fecha_inicio);\n  const [hIni, mIni] = horaBlqIni.split(':').map(Number);\n  const [hFin, mFin] = horaBlqFin.split(':').map(Number);\n  const minEvento = fechaEvento.getUTCHours() * 60 + fechaEvento.getUTCMinutes();\n  const minIni = hIni * 60 + mIni;\n  const minFin = hFin * 60 + mFin;\n  if (minEvento >= minIni && minEvento < minFin) {\n    return [{\n      json: {\n        tiene_conflicto: true,\n        es_restriccion_horaria: true,\n        hora_bloqueo_inicio: horaBlqIni,\n        hora_bloqueo_fin: horaBlqFin,\n        proximo_disponible_hora: horaBlqFin,\n        resultado: '⛔ El horario solicitado (' + toHHMM(datosEvento.fecha_inicio) + ') cae dentro del bloque restringido de ' + horaBlqIni + ' a ' + horaBlqFin + '. Por favor elige un horario fuera de ese rango.'\n      }\n    }];\n  }\n}\n\nif (busy.length === 0) {\n  return [{ json: { tiene_conflicto: false, es_restriccion_horaria: false } }];\n}\n\n// Ordenar periodos ocupados por inicio\nconst sorted = [...busy].sort((a, b) => new Date(a.start) - new Date(b.start));\n\n// Encontrar el fin mas tardio entre todos los conflictos\nlet latestEnd = sorted[0].end;\nfor (const p of sorted) {\n  if (new Date(p.end) > new Date(latestEnd)) latestEnd = p.end;\n}\n\nreturn [{\n  json: {\n    tiene_conflicto: true,\n    es_restriccion_horaria: false,\n    hora_bloqueo_inicio: horaBlqIni,\n    hora_bloqueo_fin: horaBlqFin,\n    conflicto_hora_inicio:   toHHMM(sorted[0].start),\n    conflicto_hora_fin:      toHHMM(sorted[0].end),\n    conflicto_fecha:         toFecha(sorted[0].start),\n    proximo_disponible_hora: toHHMM(latestEnd),\n    proximo_disponible_iso:  latestEnd,\n    total_conflictos: busy.length\n  }\n}];"
+      },
+      "id": "8fffad27-24fb-4a5a-b227-5cc6851d5386",
+      "name": "Verificar Conflicto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        15136,
+        15360
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r_conflict",
+              "name": "resultado",
+              "value": "={{ $json.es_restriccion_horaria ? $json.resultado : '⚠️ Ya hay un evento agendado el ' + $json.conflicto_fecha + ' de ' + $json.conflicto_hora_inicio + ' a ' + $json.conflicto_hora_fin + '.\\n\\n⏰ La siguiente hora disponible es a las *' + $json.proximo_disponible_hora + '*.\\n\\n¿Deseas agendar a las ' + $json.proximo_disponible_hora + ' en su lugar?' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "eee9814d-cb0b-4fb4-a41b-890fc2ab4626",
+      "name": "Retornar Conflicto",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        15728,
+        15168
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "rv1",
+              "leftValue": "={{ $json.tipo_evento }}",
+              "rightValue": "Llamada",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "rv2",
+              "leftValue": "={{ $json.tipo_evento }}",
+              "rightValue": "Trámite",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "id": "ffcbd42d-d19f-4cab-92f1-e21b19911bc9",
+      "name": "¿Requiere Verificación?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        14800,
+        15520
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.tiene_conflicto }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7cbef16f-f44c-4484-91dd-16e06f28883b",
+      "name": "¿Hay Conflicto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        15360,
+        15360
+      ]
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list",
+          "cachedResultName": "primary"
+        },
+        "start": "={{ $('Preparar Datos Evento1').item.json.fecha_inicio }}",
+        "end": "={{ $('Preparar Datos Evento1').item.json.fecha_fin }}",
+        "additionalFields": {
+          "attendees": "={{ $('Ejecutar Workflow').item.json.email_invitado ? [String($('Ejecutar Workflow').item.json.email_invitado)] : [] }}",
+          "description": "={{ $('Preparar Datos Evento1').item.json.descripcion_completa }}",
+          "summary": "={{ $('Preparar Datos Evento1').item.json.titulo }}"
+        }
+      },
+      "id": "463b34ca-9442-4cf9-99e2-9ad479616b6a",
+      "name": "Crear Evento Google Calendar1",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        15680,
+        15792
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "6lAsoTQnqERlsZNq",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://www.googleapis.com/calendar/v3/freeBusy",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleCalendarOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"timeMin\": \"{{ DateTime.fromISO($json.fecha_inicio).minus({ minutes: $json.margen_minutos ?? 40 }).toISO() }}\",\n  \"timeMax\": \"{{ DateTime.fromISO($json.fecha_inicio).plus({ hours: 12 }).toISO() }}\",\n  \"timeZone\": \"America/Guayaquil\",\n  \"items\": [{\"id\": \"primary\"}]\n}",
+        "options": {}
+      },
+      "id": "e0d0f017-cbbe-42cb-9f54-00699fa75658",
+      "name": "Consultar Disponibilidad",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        14960,
+        15360
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "6lAsoTQnqERlsZNq",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "s1",
+              "name": "titulo",
+              "value": "={{ $json.titulo ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "s2",
+              "name": "fecha_inicio",
+              "value": "={{ (() => { const wf = $('Ejecutar Workflow').item.json; const inDate = wf.fecha_inicio || $json.fecha_inicio || ''; if (!inDate || String(inDate).trim() === '') return ''; const ref = DateTime.fromISO(wf.fecha_referencia || DateTime.now().toISO()).setZone('America/Guayaquil'); const dtRaw = DateTime.fromISO(inDate, {zone: 'America/Guayaquil'}); let dt; if (dtRaw.year < ref.year) { dt = ref.plus({ days: 1 }).set({ hour: dtRaw.hour, minute: dtRaw.minute, second: 0, millisecond: 0 }); } else { dt = dtRaw; } if (dt < ref) { dt = ref.plus({ days: 1 }).set({ hour: dtRaw.hour, minute: dtRaw.minute, second: 0, millisecond: 0 }); } return dt.toISO(); })() }}",
+              "type": "string"
+            },
+            {
+              "id": "s3",
+              "name": "duracion_minutos",
+              "value": "={{ $json.duracion_minutos ?? 40 }}",
+              "type": "number"
+            },
+            {
+              "id": "s4",
+              "name": "descripcion",
+              "value": "={{ $json.descripcion ?? '' }}",
+              "type": "string"
+            },
+            {
+              "id": "s5",
+              "name": "fecha_fin",
+              "value": "={{ (() => { const inDate = $json.fecha_inicio; if (!inDate || String(inDate).trim() === '') return ''; const dt = DateTime.fromISO(inDate, {zone: 'America/Guayaquil'}); const ref = $('Ejecutar Workflow').item.json.fecha_referencia || DateTime.now().toISO(); const now = DateTime.fromISO(ref).setZone('America/Guayaquil'); let base; if (dt < now) { const tomorrow = now.plus({ days: 1 }); base = tomorrow.set({ hour: dt.hour, minute: dt.minute, second: 0, millisecond: 0 }); } else { base = dt; } const dur = Number($json.duracion_minutos ?? 40); return base.plus({ minutes: dur }).toISO(); })() }}",
+              "type": "string"
+            },
+            {
+              "id": "s6",
+              "name": "descripcion_completa",
+              "value": "={{ ($json.descripcion ? $json.descripcion + '\\n' : '') + '[asesor:' + ($('Ejecutar Workflow').item.json.telefono_asesor ?? '') + ']\\n[tipo:' + ($json.tipo_evento ?? 'Cita') + ']' }}",
+              "type": "string"
+            },
+            {
+              "id": "s7",
+              "name": "tipo_evento",
+              "value": "={{ $('Ejecutar Workflow').item.json.tipo_evento ?? 'Cita' }}",
+              "type": "string"
+            },
+            {
+              "id": "s8",
+              "name": "margen_minutos",
+              "value": "={{ $('Ejecutar Workflow').item.json.margen_minutos ?? 40 }}",
+              "type": "number"
+            },
+            {
+              "id": "s9",
+              "name": "hora_bloqueo_inicio",
+              "value": "={{ $('Ejecutar Workflow').item.json.hora_bloqueo_inicio || DateTime.fromISO($json.fecha_inicio, {zone: 'America/Guayaquil'}).minus({ minutes: 10 }).toFormat('HH:mm') }}",
+              "type": "string"
+            },
+            {
+              "id": "s10",
+              "name": "hora_bloqueo_fin",
+              "value": "={{ $('Ejecutar Workflow').item.json.hora_bloqueo_fin || DateTime.fromISO($json.fecha_inicio, {zone: 'America/Guayaquil'}).plus({ minutes: 40 }).toFormat('HH:mm') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6dd05539-ef68-413b-91b4-aff6b914a6d9",
+      "name": "Preparar Datos Evento1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        14416,
+        15440
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "vt1",
+              "leftValue": "={{ $json.titulo ?? '' }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "vt2",
+              "leftValue": "={{ $('Ejecutar Workflow').item.json.modo || 'agendar' }}",
+              "rightValue": "consultar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "id": "e8d60ded-5334-4ffd-9154-c0c26268f9eb",
+      "name": "¿Tiene Título?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        14592,
+        15536
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cb1",
+              "leftValue": "={{ $('Preparar Datos Evento1').item.json.tipo_evento }}",
+              "rightValue": "Cita",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "cb2",
+              "leftValue": "={{ $('Preparar Datos Evento1').item.json.tipo_evento }}",
+              "rightValue": "Reunion",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "options": {}
+      },
+      "id": "9c65286c-afb6-49a3-8b38-3851e57d9eb3",
+      "name": "¿Crear Bloqueo Persistente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        16128,
+        15696
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "mc1",
+              "leftValue": "={{ $('Ejecutar Workflow').item.json.modo || 'agendar' }}",
+              "rightValue": "consultar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "id": "61dd0c94-cbde-4b84-8a24-13ab97fc4583",
+      "name": "¿Modo Consulta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        15520,
+        15520
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r_disp",
+              "name": "resultado",
+              "value": "={{ '✅ El horario solicitado está disponible para una ' + ($('Preparar Datos Evento1').item.json.tipo_evento ?? 'Cita') + ' el ' + DateTime.fromISO($('Preparar Datos Evento1').item.json.fecha_inicio).setZone('America/Guayaquil').setLocale('es').toFormat(\"d 'de' MMMM yyyy, HH:mm\") + '.' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "ef226059-2ab9-4a3c-be26-753191f5495a",
+      "name": "Retornar Disponibilidad Consulta",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        15888,
+        15376
+      ]
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list",
+          "cachedResultName": "primary"
+        },
+        "start": "={{ (() => { const dt = DateTime.fromISO($('Preparar Datos Evento1').item.json.fecha_inicio).setZone('America/Guayaquil'); const [h, m] = String($('Preparar Datos Evento1').item.json.hora_bloqueo_inicio || '').split(':').map(Number); if (Number.isNaN(h) || Number.isNaN(m)) return dt.toISO(); return dt.set({ hour: h, minute: m, second: 0, millisecond: 0 }).toISO(); })() }}",
+        "end": "={{ (() => { const dt = DateTime.fromISO($('Preparar Datos Evento1').item.json.fecha_inicio).setZone('America/Guayaquil'); const [h, m] = String($('Preparar Datos Evento1').item.json.hora_bloqueo_fin || '').split(':').map(Number); if (Number.isNaN(h) || Number.isNaN(m)) return dt.plus({ minutes: 40 }).toISO(); return dt.set({ hour: h, minute: m, second: 0, millisecond: 0 }).toISO(); })() }}",
+        "additionalFields": {
+          "description": "={{ '[BLOQUEO_CITAS] Bloqueo de citas definido por el asesor.\\n[asesor:' + ($('Ejecutar Workflow').item.json.telefono_asesor ?? '') + ']\\n[rango:' + $('Preparar Datos Evento1').item.json.hora_bloqueo_inicio + '-' + $('Preparar Datos Evento1').item.json.hora_bloqueo_fin + ']' }}",
+          "summary": "={{ '[BLOQUEO] Sin citas en este rango' }}"
+        }
+      },
+      "id": "a4d7daaf-dc20-478a-bd07-80f9bcdf1170",
+      "name": "Crear Bloqueo Horario",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        16384,
+        15680
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "6lAsoTQnqERlsZNq",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r_ok",
+              "name": "resultado",
+              "value": "=✅ Evento creado: '{{ $('Crear Evento Google Calendar1').item.json.summary }}'\n📅 Fecha: {{ DateTime.fromISO($('Crear Evento Google Calendar1').item.json.start.dateTime).setZone('America/Guayaquil').setLocale('es').toFormat(\"d 'de' MMMM yyyy, HH:mm\") }}\n🔗 Link: {{ $('Crear Evento Google Calendar1').item.json.htmlLink }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3cbe961a-6c0a-4d85-b4e7-84e8819b733d",
+      "name": "Formatear Resultado2",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        16128,
+        15552
+      ]
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "titulo",
+              "type": "any"
+            },
+            {
+              "name": "fecha_inicio",
+              "type": "any"
+            },
+            {
+              "name": "tipo_evento",
+              "type": "any"
+            },
+            {
+              "name": "duracion_minutos",
+              "type": "any"
+            },
+            {
+              "name": "descripcion",
+              "type": "any"
+            },
+            {
+              "name": "email_invitado",
+              "type": "any"
+            },
+            {
+              "name": "telefono_asesor",
+              "type": "any"
+            },
+            {
+              "name": "margen_minutos",
+              "type": "any"
+            },
+            {
+              "name": "hora_bloqueo_inicio",
+              "type": "any"
+            },
+            {
+              "name": "hora_bloqueo_fin",
+              "type": "any"
+            },
+            {
+              "name": "fecha_referencia",
+              "type": "any"
+            },
+            {
+              "name": "modo",
+              "type": "any"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        14144,
+        15440
+      ],
+      "id": "22054a2a-ffac-40d6-8ada-58561ff7491e",
+      "name": "Ejecutar Workflow"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Verificar Conflicto": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Conflicto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Requiere Verificación?": {
+      "main": [
+        [
+          {
+            "node": "Consultar Disponibilidad",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Crear Evento Google Calendar1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Conflicto?": {
+      "main": [
+        [
+          {
+            "node": "Retornar Conflicto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Modo Consulta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Modo Consulta?": {
+      "main": [
+        [
+          {
+            "node": "Retornar Disponibilidad Consulta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Crear Evento Google Calendar1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Evento Google Calendar1": {
+      "main": [
+        [
+          {
+            "node": "¿Crear Bloqueo Persistente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Crear Bloqueo Persistente?": {
+      "main": [
+        [
+          {
+            "node": "Crear Bloqueo Horario",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Formatear Resultado2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Bloqueo Horario": {
+      "main": [
+        [
+          {
+            "node": "Formatear Resultado2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Disponibilidad": {
+      "main": [
+        [
+          {
+            "node": "Verificar Conflicto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Datos Evento1": {
+      "main": [
+        [
+          {
+            "node": "¿Tiene Título?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tiene Título?": {
+      "main": [
+        [
+          {
+            "node": "¿Requiere Verificación?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ejecutar Workflow": {
+      "main": [
+        [
+          {
+            "node": "¿Modo Listar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Modo Listar?": {
+      "main": [
+        [
+          {
+            "node": "Calcular Día Consulta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar Datos Evento1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calcular Día Consulta": {
+      "main": [
+        [
+          {
+            "node": "Listar Eventos Calendario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Listar Eventos Calendario": {
+      "main": [
+        [
+          {
+            "node": "Filtrar Eventos Día y Tipo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "903cffa5-b1f7-4763-8f91-8eeaf16efa5e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f5b03b15138dc35178a357541b8b254ab51ce8bbeabf497031c72421b8fcb7ee"
+  },
+  "id": "r1A_yxgXitXUmHB5hDKSd",
+  "tags": [
+    {
+      "updatedAt": "2026-03-01T19:37:32.830Z",
+      "createdAt": "2026-03-01T19:37:32.830Z",
+      "id": "5014ny6hlFfltdsq",
+      "name": "Bryan Real Estate"
+    },
+    {
+      "updatedAt": "2026-03-11T00:22:54.729Z",
+      "createdAt": "2026-03-11T00:22:54.729Z",
+      "id": "rWw1J3dBOKSk924S",
+      "name": "Bryan Ulloa"
+    }
+  ]
+}

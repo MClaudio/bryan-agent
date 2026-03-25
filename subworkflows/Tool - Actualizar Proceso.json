@@ -1,0 +1,315 @@
+{
+  "name": "Tool - Actualizar Proceso",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "c2",
+              "leftValue": "={{ $('Ejecutar Workflow').item.json.proceso_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a128b0c2-405a-4b93-9149-7d5f20024f59",
+      "name": "¿Actualizar Existente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1616,
+        -1248
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id AS property_id, code, address, status FROM properties WHERE code = $1 AND is_active = true LIMIT 1;",
+        "options": {}
+      },
+      "id": "232c8fc8-80de-42e6-afb3-4ea9295d2248",
+      "name": "Buscar Inmueble1",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -2064,
+        -1152
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "v1dzgvZcEPtlXg6K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r_err",
+              "name": "resultado",
+              "value": "=❌ No se encontró el inmueble con código '{{ $('Ejecutar Workflow').item.json.codigo_inmueble }}'. Verifique el código e intente nuevamente.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "90edb060-aef5-4e2d-8a00-ebccd2f1db16",
+      "name": "Error: Inmueble No Encontrado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1616,
+        -1040
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r1",
+              "name": "resultado",
+              "value": "=✅ Proceso actualizado: '{{ $json.title }}'\n📋 Tipo: {{ $json.type }}\n📝 Estado: {{ $json.description }}\n➡️ Siguiente paso: {{ $json.next_step ?? 'No definido' }}\n⏱️ Tiempo est.: {{ $json.approximate_time ?? 'No definido' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c5f3a09c-a461-4ffd-a8cc-8a0dc5a21f6d",
+      "name": "Resultado Actualizado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1184,
+        -1360
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO processes (id, property_id, title, type, description, expenses, approximate_time, next_step, created_at, updated_at) VALUES (gen_random_uuid(), $1, $2, $3, $4, '[]', $5, $6, NOW() AT TIME ZONE 'America/Guayaquil', NOW() AT TIME ZONE 'America/Guayaquil') RETURNING id, title, type, description, next_step;",
+        "options": {}
+      },
+      "id": "286ad0d5-3fc9-400b-a205-d25739da924d",
+      "name": "Crear Nuevo Proceso",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -1408,
+        -1152
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "v1dzgvZcEPtlXg6K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "63d8c043-9ea0-499b-b1b2-61fbd0fa7714",
+      "name": "Ejecutar Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -4544,
+        -1840
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE processes SET description = $1, next_step = COALESCE(NULLIF($2, ''), next_step), approximate_time = COALESCE(NULLIF($3, ''), approximate_time), updated_at = NOW() AT TIME ZONE 'America/Guayaquil' WHERE id = $4::uuid RETURNING id, title, type, description, next_step, approximate_time;",
+        "options": {}
+      },
+      "id": "8a966a6a-4abb-45c5-9e03-5ce7781810dc",
+      "name": "Actualizar Proceso",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -1408,
+        -1360
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "v1dzgvZcEPtlXg6K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r2",
+              "name": "resultado",
+              "value": "=✅ Proceso creado: '{{ $json.title }}'\n🏠 Inmueble: {{ $('Buscar Inmueble1').item.json.code }}\n📋 Tipo: {{ $json.type }}\n📝 Descripción: {{ $json.description }}\n➡️ Siguiente paso: {{ $json.next_step ?? 'No definido' }}\n🆔 ID: {{ $json.id }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "9dbfa2d2-f404-44e6-95cf-7755922f5dd5",
+      "name": "Resultado Creado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1184,
+        -1152
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.property_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bea35bce-5a77-4e22-8811-273653cf395d",
+      "name": "¿Inmueble Existe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1840,
+        -1152
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Ejecutar Workflow": {
+      "main": [
+        [
+          {
+            "node": "Buscar Inmueble1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Actualizar Existente?": {
+      "main": [
+        [
+          {
+            "node": "Actualizar Proceso",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Crear Nuevo Proceso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Inmueble1": {
+      "main": [
+        [
+          {
+            "node": "¿Inmueble Existe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear Nuevo Proceso": {
+      "main": [
+        [
+          {
+            "node": "Resultado Creado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar Proceso": {
+      "main": [
+        [
+          {
+            "node": "Resultado Actualizado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Inmueble Existe?": {
+      "main": [
+        [
+          {
+            "node": "¿Actualizar Existente?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Error: Inmueble No Encontrado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "ffd2e670-1b5d-40ac-a1cb-1c976caf0a88",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f5b03b15138dc35178a357541b8b254ab51ce8bbeabf497031c72421b8fcb7ee"
+  },
+  "id": "WF_TOOL_ACTUALIZAR_PROCESO_001",
+  "tags": [
+    {
+      "updatedAt": "2026-03-01T19:37:32.830Z",
+      "createdAt": "2026-03-01T19:37:32.830Z",
+      "id": "5014ny6hlFfltdsq",
+      "name": "Bryan Real Estate"
+    },
+    {
+      "updatedAt": "2026-03-11T00:22:54.729Z",
+      "createdAt": "2026-03-11T00:22:54.729Z",
+      "id": "rWw1J3dBOKSk924S",
+      "name": "Bryan Ulloa"
+    }
+  ]
+}

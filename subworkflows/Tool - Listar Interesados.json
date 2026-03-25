@@ -1,0 +1,171 @@
+{
+  "name": "Tool - Listar Interesados",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": "0",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "331599bb-f812-41ac-8ad7-52b661133d8a",
+      "name": "¿Hay Interesados?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -4016,
+        -864
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r_empty",
+              "name": "resultado",
+              "value": "=ℹ️ No hay clientes interesados registrados para el inmueble con código '{{ $('Ejecutar Workflow').item.json.codigo_inmueble }}'.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5e0cd98f-0f9a-4d34-9f74-2af052854df4",
+      "name": "Sin Interesados",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3792,
+        -752
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst propertyCode = items[0].json.property_code;\nconst propertyAddress = items[0].json.property_address;\n\nconst levelEmoji = {\n  'Muy Alto': '🔥',\n  'Alto': '⬆️',\n  'Medio': '➡️',\n  'Bajo': '⬇️'\n};\n\nlet lines = [\n  `👥 *Interesados - ${propertyCode}*`,\n  `📍 ${propertyAddress}`,\n  `Total: ${items.length} cliente(s)`,\n  ''\n];\n\nitems.forEach((item, i) => {\n  const c = item.json;\n  const emoji = levelEmoji[c.interest_level] || '•';\n  const date = new Date(c.interest_date).toLocaleDateString('es-EC');\n  lines.push(`${i + 1}. ${emoji} *${c.client_name}*`);\n  lines.push(`   📞 ${c.phone}${c.email ? ' | ✉️ ' + c.email : ''}`);\n  lines.push(`   Interés: ${c.interest_level} | Fecha: ${date}`);\n  if (c.notes) lines.push(`   💬 ${c.notes}`);\n  lines.push('');\n});\n\nreturn [{ json: { resultado: lines.join('\\n') } }];"
+      },
+      "id": "de035b7c-73e1-471b-b54e-73253644831e",
+      "name": "Formatear Interesados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -3792,
+        -976
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "63d8c043-9ea0-499b-b1b2-61fbd0fa7714",
+      "name": "Ejecutar Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -4544,
+        -1840
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  c.first_name || ' ' || c.last_name AS client_name,\n  c.phone,\n  c.email,\n  pi.interest_level,\n  pi.interest_date,\n  pi.notes,\n  pi.id AS interest_id,\n  p.code AS property_code,\n  p.address AS property_address\nFROM property_interests pi\nJOIN clients c ON c.id = pi.client_id\nJOIN properties p ON p.id = pi.property_id\nWHERE p.code = $1\n  AND p.is_active = true\nORDER BY\n  CASE pi.interest_level\n    WHEN 'Muy Alto' THEN 1\n    WHEN 'Alto' THEN 2\n    WHEN 'Medio' THEN 3\n    WHEN 'Bajo' THEN 4\n    ELSE 5\n  END,\n  pi.interest_date DESC;",
+        "options": {}
+      },
+      "id": "f68e588c-29cf-4a6b-8355-42e02f584e8c",
+      "name": "Consultar Interesados BD",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -4240,
+        -864
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "v1dzgvZcEPtlXg6K",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Ejecutar Workflow": {
+      "main": [
+        [
+          {
+            "node": "Consultar Interesados BD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay Interesados?": {
+      "main": [
+        [
+          {
+            "node": "Formatear Interesados",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sin Interesados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Interesados BD": {
+      "main": [
+        [
+          {
+            "node": "¿Hay Interesados?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "a6c088bb-43a2-4004-9eb4-bb35caa19a0f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f5b03b15138dc35178a357541b8b254ab51ce8bbeabf497031c72421b8fcb7ee"
+  },
+  "id": "WF_TOOL_LISTAR_INTERESADOS_001",
+  "tags": [
+    {
+      "updatedAt": "2026-03-01T19:37:32.830Z",
+      "createdAt": "2026-03-01T19:37:32.830Z",
+      "id": "5014ny6hlFfltdsq",
+      "name": "Bryan Real Estate"
+    },
+    {
+      "updatedAt": "2026-03-11T00:22:54.729Z",
+      "createdAt": "2026-03-11T00:22:54.729Z",
+      "id": "rWw1J3dBOKSk924S",
+      "name": "Bryan Ulloa"
+    }
+  ]
+}

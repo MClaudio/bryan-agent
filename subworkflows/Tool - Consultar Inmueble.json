@@ -1,0 +1,206 @@
+{
+  "name": "Tool - Consultar Inmueble",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nif (items.length === 0) {\n  const busqueda = $('Ejecutar Workflow').item.json.codigo_inmueble ?? 'desconocido';\n  return [{ json: { id: null, resultado: '🔍 No se encontró ningún inmueble activo para: *' + busqueda + '*. Verifica el código o la dirección.' } }];\n}\n\nif (items.length === 1) {\n  return [{ json: { ...items[0].json, resultado: null } }];\n}\n\n// Múltiples resultados\nconst lista = items.map((it, i) => {\n  const p = it.json;\n  return (i + 1) + '. *' + p.code + '* - ' + p.property_type + ' en ' + p.address + ' ($' + Number(p.price).toLocaleString('es-EC') + ')';\n}).join('\\n');\n\nreturn [{\n  json: {\n    id: null,\n    resultado: '🏠 Encontré ' + items.length + ' inmuebles para tu búsqueda:\\n\\n' + lista + '\\n\\n¿A cuál te refieres? Indícame el código exacto (ej: ST-001).'\n  }\n}];"
+      },
+      "id": "92b68927-4247-43d7-aeb4-d66d336b31d2",
+      "name": "Evaluar Resultados Consulta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -4080,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "63d8c043-9ea0-499b-b1b2-61fbd0fa7714",
+      "name": "Ejecutar Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -4544,
+        -1840
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r1",
+              "name": "resultado",
+              "value": "=🏠 *{{ $json.code }}* - {{ $json.property_type }}\n📍 {{ $json.address }}{{ $json.location_url ? '\\n🗺️ Ubicación: ' + $json.location_url : '' }}\n📊 Estado: {{ $json.status }}\n\n💰 *Precios:*\n- Precio: ${{ Number($json.price).toLocaleString('es-EC') }}\n- Mín: ${{ Number($json.min_price).toLocaleString('es-EC') }}{{ $json.max_price ? '\\n- Máx: $' + Number($json.max_price).toLocaleString('es-EC') : '' }}{{ $json.sale_price ? '\\n- Venta: $' + Number($json.sale_price).toLocaleString('es-EC') : '' }}\n- Comisión: {{ $json.commission }}%\n\n📐 *Áreas:*\n- Construcción: {{ $json.construction_area }} m²\n- Terreno: {{ $json.land_area }} m²\n\n🧭 Zona: {{ $json.zone }} | Topografía: {{ $json.topography }}{{ $json.features ? '\\n✨ Características: ' + $json.features : '' }}\n👤 Propietario: {{ $json.owner ?? 'No registrado' }}\n🏢 Asesor: {{ $json.advisor_name }}\n\n👥 Interesados: {{ $json.total_interesados }}\n📋 Procesos: {{ $json.total_procesos }}{{ $json.observations ? '\\n\\n📝 ' + $json.observations : '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "380ad76c-c788-4f10-8547-a8b8cc128b91",
+      "name": "Formatear Resultado1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3760,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r2",
+              "name": "resultado",
+              "value": "={{ $json.resultado ?? \"🔍 No se encontró ningún inmueble activo con el código '\" + $('Ejecutar Workflow').item.json.codigo_inmueble + \"'. Verifique el código e intente nuevamente.\"  }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "3a891ce1-8028-4e63-9555-6da4ee0732be",
+      "name": "No Encontrado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -3760,
+        352
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  p.id,\n  p.code,\n  p.address,\n  p.property_type,\n  p.status,\n  p.price,\n  p.min_price,\n  p.max_price,\n  p.sale_price,\n  p.commission,\n  p.construction_area,\n  p.land_area,\n  p.has_basic_services,\n  p.features,\n  p.topography,\n  p.zone,\n  p.construction_years,\n  p.owner,\n  p.observations,\n  p.location_url,\n  p.is_public,\n  p.is_featured,\n  p.created_at,\n  u.first_name || ' ' || u.last_name AS advisor_name,\n  (SELECT COUNT(*) FROM property_interests pi WHERE pi.property_id = p.id) AS total_interesados,\n  (SELECT COUNT(*) FROM processes pr WHERE pr.property_id = p.id) AS total_procesos\nFROM properties p\nJOIN users u ON u.id = p.advisor_id\nWHERE (p.code = $1 OR p.address ILIKE $2)\n  AND p.is_active = true\nLIMIT 5;",
+        "options": {}
+      },
+      "id": "368ae6e6-a31d-4403-93e1-882010921e4d",
+      "name": "Consultar Inmueble BD",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -4192,
+        240
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "v1dzgvZcEPtlXg6K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b24f8f6b-822d-44b5-b81a-cf6b238ba23e",
+      "name": "¿Encontrado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -3968,
+        240
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Ejecutar Workflow": {
+      "main": [
+        [
+          {
+            "node": "Consultar Inmueble BD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluar Resultados Consulta": {
+      "main": [
+        [
+          {
+            "node": "¿Encontrado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar Inmueble BD": {
+      "main": [
+        [
+          {
+            "node": "Evaluar Resultados Consulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Encontrado?": {
+      "main": [
+        [
+          {
+            "node": "Formatear Resultado1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Encontrado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "d07bf68b-4d1f-4480-8551-5e6e0682f980",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f5b03b15138dc35178a357541b8b254ab51ce8bbeabf497031c72421b8fcb7ee"
+  },
+  "id": "WF_TOOL_CONSULTAR_INMUEBLE_001",
+  "tags": [
+    {
+      "updatedAt": "2026-03-01T19:37:32.830Z",
+      "createdAt": "2026-03-01T19:37:32.830Z",
+      "id": "5014ny6hlFfltdsq",
+      "name": "Bryan Real Estate"
+    },
+    {
+      "updatedAt": "2026-03-11T00:22:54.729Z",
+      "createdAt": "2026-03-11T00:22:54.729Z",
+      "id": "rWw1J3dBOKSk924S",
+      "name": "Bryan Ulloa"
+    }
+  ]
+}

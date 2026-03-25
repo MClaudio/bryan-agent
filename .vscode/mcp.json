@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "n8n-mcp": {
+      "command": "npx",
+      "args": ["n8n-mcp"],
+      "env": {
+        "MCP_MODE": "stdio",
+        "LOG_LEVEL": "error",
+        "DISABLE_CONSOLE_OUTPUT": "true",
+        "N8N_API_URL": "https://n8n.ecuadev.com",
+        "N8N_API_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1Zjc2NTE1OS1jZTkxLTQ3OWQtYjhlMi1lM2YxZjFlMmIwM2MiLCJpc3MiOiJuOG4iLCJhdWQiOiJwdWJsaWMtYXBpIiwianRpIjoiOGE0MTZmOGItZTQxZC00YmQ1LTkzZWItN2M0ZGQzY2FkMWEyIiwiaWF0IjoxNzczNzcwNDM1LCJleHAiOjE3ODE0OTYwMDB9.3cXnG2RDy7uKw4sXxXXvLU7pNq7BuhtcOh2y63cUrNI"
+      }
+    }
+  }
+}

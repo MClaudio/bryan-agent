@@ -1,0 +1,49 @@
+{
+  "name": "Workflow Cliente Placeholder",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "trigger-cliente-inbound",
+      "name": "Ejecutar Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "noop-cliente-inbound",
+      "name": "No Operation",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [200, 0]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Ejecutar Workflow": {
+      "main": [
+        [
+          {
+            "node": "No Operation",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "placeholder-cliente-uuid",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "WF_CLIENTE_INBOUND_PLACEHOLDER_001",
+  "tags": []
+}

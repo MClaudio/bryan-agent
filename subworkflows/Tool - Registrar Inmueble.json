@@ -1,0 +1,422 @@
+{
+  "name": "Tool - Registrar Inmueble",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r_err",
+              "name": "resultado",
+              "value": "=⚠️ El código de inmueble '{{ $('Ejecutar Workflow').item.json.codigo }}' ya está registrado en la base de datos. Use un código diferente.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "02f305f5-87c4-45cb-a773-9767c58b53d0",
+      "name": "Error Código Duplicado",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        14192,
+        10192
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id FROM properties WHERE code = $1 LIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [ $('Resolver Ubicacion').item.json.codigo ] }}"
+        }
+      },
+      "id": "b573fe6a-17d0-40da-a646-fc5e8ce9fb75",
+      "name": "Verificar Código Único",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        13840,
+        10304
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "v1dzgvZcEPtlXg6K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r2",
+              "name": "resultado",
+              "value": "=✅ Inmueble registrado exitosamente.\n🏠 Código: {{ $json.code }}\n📍 Dirección: {{ $json.address }}\n🏷️ Tipo: {{ $json.property_type }}\n📊 Estado: {{ $json.status }}\n🆔 ID: {{ $json.id }}\n\nRecuerde completar los datos adicionales (ubicación, servicios, imágenes) desde el panel de administración.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "633ee593-3473-495c-9dd6-984e76c2ca63",
+      "name": "Resultado Exitoso1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        14384,
+        10448
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "dcfed8b0-ebfb-4cd5-bea5-973fc86f96a1",
+      "name": "¿Código Duplicado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        14016,
+        10304
+      ]
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "codigo"
+            },
+            {
+              "name": "direccion_inmueble"
+            },
+            {
+              "name": "area_construccion"
+            },
+            {
+              "name": "area_terreno"
+            },
+            {
+              "name": "property_type"
+            },
+            {
+              "name": "topography"
+            },
+            {
+              "name": "zone"
+            },
+            {
+              "name": "advisor_id"
+            },
+            {
+              "name": "owner"
+            },
+            {
+              "name": "price"
+            },
+            {
+              "name": "min_price"
+            },
+            {
+              "name": "commission"
+            },
+            {
+              "name": "latitude"
+            },
+            {
+              "name": "longitude"
+            },
+            {
+              "name": "observations"
+            },
+            {
+              "name": "location_url"
+            }
+          ]
+        }
+      },
+      "id": "e058aecd-f4c2-41b8-877e-f548b281a060",
+      "name": "Ejecutar Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        12976,
+        10176
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO properties (\n  id, code, address, location_url,\n  construction_area, land_area, has_basic_services, basic_services,\n  property_type, topography, zone, status,\n  advisor_id, owner, price, min_price, commission,\n  latitude, longitude,\n  is_public, is_active, is_featured,\n  observations, created_at, updated_at\n) VALUES (\n  gen_random_uuid(), $1, $2, $16,\n  $3, $4, false, '[]',\n  $5, $6, $7, 'Nuevo',\n  $8::uuid, $9, $10, $11, $12,\n  $13, $14,\n  true, true, false,\n  $15, NOW() AT TIME ZONE 'America/Guayaquil', NOW() AT TIME ZONE 'America/Guayaquil'\n) RETURNING id, code, address, property_type, status;",
+        "options": {
+          "queryReplacement": "={{ [\n  $('Resolver Ubicacion').item.json.codigo,\n  $('Resolver Ubicacion').item.json.direccion_inmueble,\n  $('Resolver Ubicacion').item.json.area_construccion || 0,\n  $('Resolver Ubicacion').item.json.area_terreno || 0,\n  $('Resolver Ubicacion').item.json.property_type || '',\n  $('Resolver Ubicacion').item.json.topography || '',\n  $('Resolver Ubicacion').item.json.zone || '',\n  $('Resolver Ubicacion').item.json.advisor_id,\n  $('Resolver Ubicacion').item.json.owner || '',\n  $('Resolver Ubicacion').item.json.price || 0,\n  $('Resolver Ubicacion').item.json.min_price || 0,\n  $('Resolver Ubicacion').item.json.commission || 0,\n  $('Resolver Ubicacion').item.json.latitude || '0',\n  $('Resolver Ubicacion').item.json.longitude || '0',\n  $('Resolver Ubicacion').item.json.observations || '',\n  $('Resolver Ubicacion').item.json.location_url || ''\n] }}"
+        }
+      },
+      "id": "eee389be-bd14-46d3-96ab-7d0df5ba20d8",
+      "name": "Insertar Inmueble",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        14208,
+        10432
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "v1dzgvZcEPtlXg6K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const p = $input.first().json;\nlet textToSearch = (p.location_url || \"\") + \" \" + (p.latitude || \"\") + \" \" + (p.longitude || \"\") + \" \" + (p.observations || \"\") + \" \" + (p.direccion_inmueble || \"\") + \" \" + (p.codigo || \"\");\n\nlet match = textToSearch.match(/https?:\\/\\/[^\\s]+/);\nlet urlToFetch = \"\";\n\nif (match) {\n  let foundUrl = match[0];\n  if (foundUrl.includes(\"google\") || foundUrl.includes(\"goo.gl\") || foundUrl.includes(\"maps\")) {\n    urlToFetch = foundUrl;\n  }\n}\n\np.latitude = p.latitude || \"0\";\np.longitude = p.longitude || \"0\";\np.location_url = p.location_url || \"\";\n\nreturn [{ json: { ...p, has_url: urlToFetch !== \"\", urlToFetch } }];"
+      },
+      "id": "5d0997ab-5c36-44f5-8801-614fcd4e595b",
+      "name": "Extraer URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13168,
+        10176
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.has_url }}",
+              "value2": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1639a2e3-c752-4f19-86ba-ad40afab4924",
+      "name": "¿Tiene URL?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        13312,
+        10176
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://bryan.ecuadev.com/api/properties/resolve-maps-url?url={{ encodeURIComponent($json.urlToFetch) }}",
+        "options": {
+          "timeout": 4000
+        }
+      },
+      "id": "6acd0fab-52e3-4288-a20c-74a8c54b9d26",
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        13488,
+        10160
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "let p = {};\ntry {\n  let prevItems = $items(\"Extraer URL\");\n  if (prevItems && prevItems.length > 0) {\n    p = JSON.parse(JSON.stringify(prevItems[0].json));\n  } else {\n    p = JSON.parse(JSON.stringify($input.first().json));\n  }\n} catch(e) {\n  p = JSON.parse(JSON.stringify($input.first().json));\n}\n\ntry {\n  const inputItem = $input.first().json;\n  if (inputItem.error) {\n    throw new Error(\"Timeout o Error en API Backend: \" + JSON.stringify(inputItem.error));\n  }\n  if (inputItem.latitude && inputItem.longitude) {\n    p.latitude = inputItem.latitude;\n    p.longitude = inputItem.longitude;\n    p.location_url = inputItem.resolvedUrl || p.urlToFetch;\n  }\n} catch (e) {\n  p.latitude = \"0\";\n  p.longitude = \"0\";\n  p.location_url = \"\";\n  p.error = \"No se pudo guardar la ubicación: Error al resolver Link en el sistema. \" + e.message;\n  p.error_location = p.error;\n}\n\ndelete p.has_url;\ndelete p.urlToFetch;\n\nreturn [{ json: p }];"
+      },
+      "id": "2490a3f8-f3d2-439c-8ec4-f1fe3fcadf79",
+      "name": "Resolver Ubicacion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        13648,
+        10320
+      ]
+    }
+  ],
+  "pinData": {
+    "Ejecutar Workflow": [
+      {
+        "json": {
+          "codigo": "0003",
+          "direccion_inmueble": "Gualcaeo, calles Vicente Peña Reyes y Av. Los Cañaverales",
+          "area_construccion": 0,
+          "area_terreno": 150,
+          "property_type": "Terreno",
+          "topography": "Plano",
+          "zone": "Urbano",
+          "advisor_id": "0c6bc30a-6f30-43be-946d-e8f868aec94a",
+          "owner": "",
+          "price": 100000,
+          "min_price": 0,
+          "commission": 3,
+          "latitude": "",
+          "longitude": "",
+          "observations": ""
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Ejecutar Workflow": {
+      "main": [
+        [
+          {
+            "node": "Extraer URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer URL": {
+      "main": [
+        [
+          {
+            "node": "¿Tiene URL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tiene URL?": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resolver Ubicacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Resolver Ubicacion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Resolver Ubicacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolver Ubicacion": {
+      "main": [
+        [
+          {
+            "node": "Verificar Código Único",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Código Único": {
+      "main": [
+        [
+          {
+            "node": "¿Código Duplicado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Código Duplicado?": {
+      "main": [
+        [
+          {
+            "node": "Error Código Duplicado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Insertar Inmueble",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insertar Inmueble": {
+      "main": [
+        [
+          {
+            "node": "Resultado Exitoso1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "790f8c38-2fc5-4765-b620-8f6832563788",
+  "meta": {
+    "instanceId": "f5b03b15138dc35178a357541b8b254ab51ce8bbeabf497031c72421b8fcb7ee"
+  },
+  "id": "x_oJUDwntlZ6TqVTuSRdM",
+  "tags": [
+    {
+      "updatedAt": "2026-03-01T19:37:32.830Z",
+      "createdAt": "2026-03-01T19:37:32.830Z",
+      "id": "5014ny6hlFfltdsq",
+      "name": "Bryan Real Estate"
+    },
+    {
+      "updatedAt": "2026-03-11T00:22:54.729Z",
+      "createdAt": "2026-03-11T00:22:54.729Z",
+      "id": "rWw1J3dBOKSk924S",
+      "name": "Bryan Ulloa"
+    }
+  ]
+}
