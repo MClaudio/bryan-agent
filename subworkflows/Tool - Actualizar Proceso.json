@@ -3,11 +3,148 @@
   "nodes": [
     {
       "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "inmueble"
+            },
+            {
+              "name": "proceso_id"
+            },
+            {
+              "name": "title"
+            },
+            {
+              "name": "type"
+            },
+            {
+              "name": "description"
+            },
+            {
+              "name": "approximate_time"
+            },
+            {
+              "name": "next_step"
+            }
+          ]
+        }
+      },
+      "id": "trigger",
+      "name": "Ejecutar Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -2200,
+        -1152
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id, code, address, status, property_type FROM properties WHERE code ILIKE $1 OR address ILIKE $2 OR $3 ILIKE '%' || address || '%' LIMIT 10;",
+        "options": {
+          "queryReplacement": "={{ [\n  $('Ejecutar Workflow').item.json.inmueble,\n  '%' + $('Ejecutar Workflow').item.json.inmueble + '%',\n  $('Ejecutar Workflow').item.json.inmueble\n] }}"
+        }
+      },
+      "id": "buscar-inmueble",
+      "name": "Buscar Inmueble",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -1960,
+        -1152
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "v1dzgvZcEPtlXg6K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const wf = $(\"Ejecutar Workflow\").first().json;\nconst propItems = $input.all().map(i => i.json);\nconst propiedades = (propItems.length === 1 && Object.keys(propItems[0]).length === 0) ? [] : propItems;\n\nlet accion = 'accion_valida';\nlet resultado = '';\nlet property_id = null;\n\nif (propiedades.length === 0) {\n  accion = 'error';\n  resultado = `\\n❌ No se encontró ningún inmueble en la base de datos con la dirección o código proporcionado: ${wf.inmueble}.`;\n} else if (propiedades.length > 1) {\n  accion = 'error';\n  resultado = `\\n⚠️ Propiedades encontradas:\\n`;\n  propiedades.forEach(p => {\n    resultado += `- Código: ${p.code} | Dir: ${p.address} | Tipo: ${p.property_type}\\n`;\n  });\n  resultado += `\\n👉 Pide al asesor que confirme el código de la propiedad a la cual desea agregar o actualizar el proceso.`;\n} else {\n  property_id = propiedades[0].id;\n}\n\nreturn [{ json: { accion, resultado, property_id, wf_data: wf } }];"
+      },
+      "id": "evaluar-inmueble",
+      "name": "Evaluar Inmueble",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1720,
+        -1152
+      ]
+    },
+    {
+      "parameters": {
         "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.accion }}",
+              "rightValue": "accion_valida",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cond-valida",
+      "name": "¿Es Valido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -1500,
+        -1152
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r1",
+              "name": "resultado",
+              "value": "={{ $json.resultado }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "set-opciones",
+      "name": "Retornar Opciones",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1250,
+        -1350
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
           "conditions": [
             {
               "id": "c2",
-              "leftValue": "={{ $('Ejecutar Workflow').item.json.proceso_id }}",
+              "leftValue": "={{ $json.wf_data.proceso_id }}",
               "rightValue": "",
               "operator": {
                 "type": "string",
@@ -20,29 +157,32 @@
         },
         "options": {}
       },
-      "id": "a128b0c2-405a-4b93-9149-7d5f20024f59",
+      "id": "cond-act",
       "name": "¿Actualizar Existente?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        -1616,
-        -1248
+        -1250,
+        -1000
       ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT id AS property_id, code, address, status FROM properties WHERE code = $1 AND is_active = true LIMIT 1;",
-        "options": {}
+        "query": "UPDATE processes SET description = $1, next_step = COALESCE(NULLIF($2, ''), next_step), approximate_time = COALESCE(NULLIF($3, ''), approximate_time), updated_at = NOW() AT TIME ZONE 'America/Guayaquil' WHERE id = $4::uuid RETURNING id, title, type, description, next_step, approximate_time;",
+        "options": {
+          "queryReplacement": "={{ [\n  $json.wf_data.description,\n  $json.wf_data.next_step,\n  $json.wf_data.approximate_time,\n  $json.wf_data.proceso_id\n] }}"
+        }
       },
-      "id": "232c8fc8-80de-42e6-afb3-4ea9295d2248",
-      "name": "Buscar Inmueble1",
+      "id": "act-proc",
+      "name": "Actualizar Proceso",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -2064,
-        -1152
+        -1000,
+        -1150
       ],
+      "alwaysOutputData": true,
       "credentials": {
         "postgres": {
           "id": "v1dzgvZcEPtlXg6K",
@@ -52,26 +192,27 @@
     },
     {
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "r_err",
-              "name": "resultado",
-              "value": "=❌ No se encontró el inmueble con código '{{ $('Ejecutar Workflow').item.json.codigo_inmueble }}'. Verifique el código e intente nuevamente.",
-              "type": "string"
-            }
-          ]
-        },
-        "options": {}
+        "operation": "executeQuery",
+        "query": "INSERT INTO processes (id, property_id, title, type, description, expenses, approximate_time, next_step, created_at, updated_at) VALUES (gen_random_uuid(), $1::uuid, $2, $3, $4, '[]', $5, $6, NOW() AT TIME ZONE 'America/Guayaquil', NOW() AT TIME ZONE 'America/Guayaquil') RETURNING id, title, type, description, next_step;",
+        "options": {
+          "queryReplacement": "={{ [\n  $json.property_id,\n  $json.wf_data.title,\n  $json.wf_data.type,\n  $json.wf_data.description,\n  $json.wf_data.approximate_time,\n  $json.wf_data.next_step\n] }}"
+        }
       },
-      "id": "90edb060-aef5-4e2d-8a00-ebccd2f1db16",
-      "name": "Error: Inmueble No Encontrado",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
+      "id": "crear-proc",
+      "name": "Crear Nuevo Proceso",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
       "position": [
-        -1616,
-        -1040
-      ]
+        -1000,
+        -850
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "v1dzgvZcEPtlXg6K",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
@@ -87,69 +228,14 @@
         },
         "options": {}
       },
-      "id": "c5f3a09c-a461-4ffd-a8cc-8a0dc5a21f6d",
+      "id": "res-act",
       "name": "Resultado Actualizado",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -1184,
-        -1360
+        -750,
+        -1150
       ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "INSERT INTO processes (id, property_id, title, type, description, expenses, approximate_time, next_step, created_at, updated_at) VALUES (gen_random_uuid(), $1, $2, $3, $4, '[]', $5, $6, NOW() AT TIME ZONE 'America/Guayaquil', NOW() AT TIME ZONE 'America/Guayaquil') RETURNING id, title, type, description, next_step;",
-        "options": {}
-      },
-      "id": "286ad0d5-3fc9-400b-a205-d25739da924d",
-      "name": "Crear Nuevo Proceso",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        -1408,
-        -1152
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "v1dzgvZcEPtlXg6K",
-          "name": "Postgres account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "inputSource": "passthrough"
-      },
-      "id": "63d8c043-9ea0-499b-b1b2-61fbd0fa7714",
-      "name": "Ejecutar Workflow",
-      "type": "n8n-nodes-base.executeWorkflowTrigger",
-      "typeVersion": 1.1,
-      "position": [
-        -4544,
-        -1840
-      ]
-    },
-    {
-      "parameters": {
-        "operation": "executeQuery",
-        "query": "UPDATE processes SET description = $1, next_step = COALESCE(NULLIF($2, ''), next_step), approximate_time = COALESCE(NULLIF($3, ''), approximate_time), updated_at = NOW() AT TIME ZONE 'America/Guayaquil' WHERE id = $4::uuid RETURNING id, title, type, description, next_step, approximate_time;",
-        "options": {}
-      },
-      "id": "8a966a6a-4abb-45c5-9e03-5ce7781810dc",
-      "name": "Actualizar Proceso",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.5,
-      "position": [
-        -1408,
-        -1360
-      ],
-      "credentials": {
-        "postgres": {
-          "id": "v1dzgvZcEPtlXg6K",
-          "name": "Postgres account"
-        }
-      }
     },
     {
       "parameters": {
@@ -158,48 +244,20 @@
             {
               "id": "r2",
               "name": "resultado",
-              "value": "=✅ Proceso creado: '{{ $json.title }}'\n🏠 Inmueble: {{ $('Buscar Inmueble1').item.json.code }}\n📋 Tipo: {{ $json.type }}\n📝 Descripción: {{ $json.description }}\n➡️ Siguiente paso: {{ $json.next_step ?? 'No definido' }}\n🆔 ID: {{ $json.id }}",
+              "value": "=✅ Proceso creado: '{{ $json.title }}'\n📋 Tipo: {{ $json.type }}\n📝 Descripción: {{ $json.description }}\n➡️ Siguiente paso: {{ $json.next_step ?? 'No definido' }}\n🆔 ID: {{ $json.id }}",
               "type": "string"
             }
           ]
         },
         "options": {}
       },
-      "id": "9dbfa2d2-f404-44e6-95cf-7755922f5dd5",
+      "id": "res-cre",
       "name": "Resultado Creado",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -1184,
-        -1152
-      ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "conditions": [
-            {
-              "id": "c1",
-              "leftValue": "={{ $json.property_id }}",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "notEmpty",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "bea35bce-5a77-4e22-8811-273653cf395d",
-      "name": "¿Inmueble Existe?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        -1840,
-        -1152
+        -750,
+        -850
       ]
     }
   ],
@@ -209,7 +267,47 @@
       "main": [
         [
           {
-            "node": "Buscar Inmueble1",
+            "node": "Buscar Inmueble",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Inmueble": {
+      "main": [
+        [
+          {
+            "node": "Evaluar Inmueble",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Evaluar Inmueble": {
+      "main": [
+        [
+          {
+            "node": "¿Es Valido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es Valido?": {
+      "main": [
+        [
+          {
+            "node": "¿Actualizar Existente?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Retornar Opciones",
             "type": "main",
             "index": 0
           }
@@ -234,28 +332,6 @@
         ]
       ]
     },
-    "Buscar Inmueble1": {
-      "main": [
-        [
-          {
-            "node": "¿Inmueble Existe?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Crear Nuevo Proceso": {
-      "main": [
-        [
-          {
-            "node": "Resultado Creado",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Actualizar Proceso": {
       "main": [
         [
@@ -267,18 +343,11 @@
         ]
       ]
     },
-    "¿Inmueble Existe?": {
+    "Crear Nuevo Proceso": {
       "main": [
         [
           {
-            "node": "¿Actualizar Existente?",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Error: Inmueble No Encontrado",
+            "node": "Resultado Creado",
             "type": "main",
             "index": 0
           }
