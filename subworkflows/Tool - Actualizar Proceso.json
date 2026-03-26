@@ -25,6 +25,9 @@
             },
             {
               "name": "next_step"
+            },
+            {
+              "name": "expenses"
             }
           ]
         }
@@ -169,9 +172,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "UPDATE processes SET description = $1, next_step = COALESCE(NULLIF($2, ''), next_step), approximate_time = COALESCE(NULLIF($3, ''), approximate_time), updated_at = NOW() AT TIME ZONE 'America/Guayaquil' WHERE id = $4::uuid RETURNING id, title, type, description, next_step, approximate_time;",
+        "query": "UPDATE processes SET description = $1, next_step = COALESCE(NULLIF($2, ''), next_step), approximate_time = COALESCE(NULLIF($3, ''), approximate_time), type = COALESCE(NULLIF($4, '')::\"ProcessType\", type), updated_at = NOW() AT TIME ZONE 'America/Guayaquil' WHERE id = $5::uuid RETURNING id, title, type, description, next_step, approximate_time;",
         "options": {
-          "queryReplacement": "={{ [\n  $json.wf_data.description,\n  $json.wf_data.next_step,\n  $json.wf_data.approximate_time,\n  $json.wf_data.proceso_id\n] }}"
+          "queryReplacement": "={{ [\n  $json.wf_data.description,\n  $json.wf_data.next_step,\n  $json.wf_data.approximate_time,\n  $json.wf_data.type,\n  $json.wf_data.proceso_id\n] }}"
         }
       },
       "id": "act-proc",
@@ -193,9 +196,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO processes (id, property_id, title, type, description, expenses, approximate_time, next_step, created_at, updated_at) VALUES (gen_random_uuid(), $1::uuid, $2, $3, $4, '[]', $5, $6, NOW() AT TIME ZONE 'America/Guayaquil', NOW() AT TIME ZONE 'America/Guayaquil') RETURNING id, title, type, description, next_step;",
+        "query": "INSERT INTO processes (id, property_id, title, type, description, expenses, approximate_time, next_step, created_at, updated_at) VALUES (gen_random_uuid(), $1::uuid, $2, $3::\"ProcessType\", $4, COALESCE(NULLIF($5, '')::json, '[]'::json), $6, $7, NOW() AT TIME ZONE 'America/Guayaquil', NOW() AT TIME ZONE 'America/Guayaquil') RETURNING id, title, type, description, next_step;",
         "options": {
-          "queryReplacement": "={{ [\n  $json.property_id,\n  $json.wf_data.title,\n  $json.wf_data.type,\n  $json.wf_data.description,\n  $json.wf_data.approximate_time,\n  $json.wf_data.next_step\n] }}"
+          "queryReplacement": "={{ [\n  $json.property_id,\n  $json.wf_data.title,\n  $json.wf_data.type,\n  $json.wf_data.description,\n  $json.wf_data.expenses,\n  $json.wf_data.approximate_time,\n  $json.wf_data.next_step\n] }}"
         }
       },
       "id": "crear-proc",
