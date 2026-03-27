@@ -4,17 +4,20 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT\n  pr.id,\n  pr.title,\n  pr.type,\n  pr.description,\n  pr.next_step,\n  pr.approximate_time,\n  pr.expenses,\n  pr.created_at,\n  pr.updated_at,\n  p.code AS property_code,\n  p.address AS property_address,\n  p.status AS property_status\nFROM processes pr\nJOIN properties p ON p.id = pr.property_id\nWHERE p.code = $1\n  AND p.is_active = true\nORDER BY pr.updated_at DESC;",
-        "options": {}
+        "query": "SELECT\n  pr.id AS proceso_id,\n  pr.title,\n  pr.type,\n  pr.description,\n  pr.next_step,\n  pr.approximate_time,\n  pr.expenses,\n  pr.created_at,\n  pr.updated_at,\n  p.id   AS property_id,\n  p.code AS property_code,\n  p.address AS property_address,\n  p.status AS property_status\nFROM properties p\nJOIN processes pr ON pr.property_id = p.id\nWHERE p.is_active = true\n  AND (\n    p.code ILIKE $1\n    OR p.address ILIKE ('%' || $1 || '%')\n  )\nORDER BY p.code, pr.created_at DESC;",
+        "options": {
+          "queryReplacement": "={{ ($('Ejecutar Workflow').item.json.busqueda ?? '').trim() }}"
+        }
       },
-      "id": "9a3302a6-5a7e-4f00-9ea7-20ba63540b09",
+      "id": "048f89f9-58dc-422c-9786-a5ca3e21dc8b",
       "name": "Consultar Procesos BD",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -4240,
-        -304
+        1344,
+        3408
       ],
+      "alwaysOutputData": true,
       "credentials": {
         "postgres": {
           "id": "v1dzgvZcEPtlXg6K",
@@ -28,25 +31,28 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ $json.length }}",
-              "rightValue": "0",
+              "leftValue": "={{ $json.proceso_id }}",
+              "rightValue": "",
               "operator": {
-                "type": "number",
-                "operation": "gt"
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
               }
             }
           ],
           "combinator": "and"
         },
-        "options": {}
+        "options": {
+          "looseTypeValidation": true
+        }
       },
-      "id": "faf850a7-1649-4ee7-9836-41804a8cb3e3",
+      "id": "d5d2a086-8956-4578-82bd-1221105a2c54",
       "name": "¿Hay Procesos?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        -4000,
-        -304
+        1584,
+        3408
       ]
     },
     {
@@ -56,46 +62,55 @@
             {
               "id": "r_empty",
               "name": "resultado",
-              "value": "=ℹ️ El inmueble con código '{{ $('Ejecutar Workflow').item.json.codigo_inmueble }}' no tiene procesos registrados actualmente.",
+              "value": "={{ $json.resultado }}",
               "type": "string"
             }
           ]
         },
         "options": {}
       },
-      "id": "f1e65d05-8ba4-4742-9016-d969385356a4",
+      "id": "058fd96c-23c5-4832-bd22-4dbeca8dfd04",
       "name": "Sin Procesos",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -3792,
-        -192
+        1792,
+        3520
       ]
     },
     {
       "parameters": {
-        "inputSource": "passthrough"
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "busqueda"
+            },
+            {
+              "name": "solo_ultimo"
+            }
+          ]
+        }
       },
-      "id": "63d8c043-9ea0-499b-b1b2-61fbd0fa7714",
+      "id": "4115da2d-0d7f-4ecc-b311-eec76a3d5889",
       "name": "Ejecutar Workflow",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
       "position": [
-        -4544,
-        -1840
+        1040,
+        3408
       ]
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst propertyCode = items[0].json.property_code;\nconst propertyAddress = items[0].json.property_address;\nconst propertyStatus = items[0].json.property_status;\n\nlet lines = [`📋 *Procesos - Inmueble ${propertyCode}*`, `📍 ${propertyAddress}`, `📊 Estado: ${propertyStatus}`, ''];\n\nitems.forEach((item, i) => {\n  const p = item.json;\n  const updatedDate = new Date(p.updated_at).toLocaleDateString('es-EC', { day: '2-digit', month: '2-digit', year: 'numeric' });\n  lines.push(`*${i + 1}. ${p.title}* (${p.type})`);\n  lines.push(`   📝 ${p.description}`);\n  if (p.next_step) lines.push(`   ➡️ Siguiente: ${p.next_step}`);\n  if (p.approximate_time) lines.push(`   ⏱️ Tiempo: ${p.approximate_time}`);\n  lines.push(`   🗓️ Actualizado: ${updatedDate}`);\n  lines.push(`   🆔 ID: ${p.id}`);\n  lines.push('');\n});\n\nreturn [{ json: { resultado: lines.join('\\n') } }];"
+        "jsCode": "const items = $input.all();\nconst wf = $('Ejecutar Workflow').first().json;\nconst busqueda = (wf.busqueda ?? '').trim();\nconst soloUltimo = String(wf.solo_ultimo ?? '').toLowerCase() === 'true';\n\n// Detect empty result (postgres outputs 1 empty item when 0 rows)\nconst rows = (items.length === 1 && Object.keys(items[0].json).length === 0) ? [] : items;\n\nif (rows.length === 0) {\n  return [{ json: { resultado: `🔍 No se encontraron procesos para el inmueble \"${busqueda}\". Verifica el código o la dirección.` } }];\n}\n\n// Group rows by property\nconst propMap = {};\nrows.forEach(it => {\n  const r = it.json;\n  if (!propMap[r.property_id]) {\n    propMap[r.property_id] = {\n      code: r.property_code,\n      address: r.property_address,\n      status: r.property_status,\n      processes: []\n    };\n  }\n  propMap[r.property_id].processes.push(r);\n});\n\nconst props = Object.values(propMap);\n\n// Multiple properties detected → ask for clarification\nif (props.length > 1) {\n  const lista = props.map((p, i) => `${i + 1}. *${p.code}* - ${p.address}`).join('\\n');\n  return [{\n    json: {\n      resultado: `🏠 Encontré ${props.length} inmuebles en \"${busqueda}\":\\n\\n${lista}\\n\\n👉 Indícame el código exacto para ver sus procesos.`\n    }\n  }];\n}\n\n// Single property → list its processes\nconst prop = props[0];\nconst procesos = soloUltimo ? [prop.processes[0]] : prop.processes;\n\nconst lines = [\n  `📋 *Procesos — Inmueble ${prop.code}*`,\n  `📍 ${prop.address}`,\n  `📊 Estado: ${prop.status}`,\n  `📦 Total: ${prop.processes.length} proceso(s)${soloUltimo ? ' (mostrando el más reciente)' : ''}`,\n  ''\n];\n\nprocesos.forEach((p, i) => {\n  const fecha = new Date(p.created_at).toLocaleDateString('es-EC', {\n    day: '2-digit', month: '2-digit', year: 'numeric'\n  });\n  const actualizado = new Date(p.updated_at).toLocaleDateString('es-EC', {\n    day: '2-digit', month: '2-digit', year: 'numeric'\n  });\n  lines.push(`*${soloUltimo ? '🕐 Último proceso' : (i + 1) + '.'} ${p.title}*`);\n  lines.push(`   👤 Parte: ${p.type}`);\n  lines.push(`   📝 ${p.description}`);\n  if (p.next_step) lines.push(`   ➡️ Siguiente paso: ${p.next_step}`);\n  if (p.approximate_time) lines.push(`   ⏱️ Duración: ${p.approximate_time}`);\n  lines.push(`   📅 Registrado: ${fecha} • Actualizado: ${actualizado}`);\n  lines.push('');\n});\n\nreturn [{ json: { resultado: lines.join('\\n') } }];"
       },
-      "id": "3258eb4a-29bf-4d3e-9c3f-483811e63d63",
+      "id": "76d9d8f7-5de1-4880-bfa2-a0dc3a22c85c",
       "name": "Formatear Procesos",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -3792,
-        -416
+        1792,
+        3296
       ]
     }
   ],
@@ -142,18 +157,17 @@
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "d97ea0ba-55b5-4caf-8992-bc9009778355",
+  "versionId": "1f7fd1dd-b987-4a30-a89c-54512de5724b",
   "meta": {
-    "templateCredsSetupCompleted": true,
     "instanceId": "f5b03b15138dc35178a357541b8b254ab51ce8bbeabf497031c72421b8fcb7ee"
   },
-  "id": "WF_TOOL_CONSULTAR_PROCESO_001",
+  "id": "RDV9l__Yq1ySMVuo_0zNF",
   "tags": [
     {
       "updatedAt": "2026-03-01T19:37:32.830Z",
