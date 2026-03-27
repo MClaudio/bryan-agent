@@ -3,94 +3,53 @@
   "nodes": [
     {
       "parameters": {
-        "conditions": {
-          "conditions": [
-            {
-              "id": "c1",
-              "leftValue": "={{ $json.length }}",
-              "rightValue": "0",
-              "operator": {
-                "type": "number",
-                "operation": "gt"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
+        "jsCode": "const items = $input.all();\nconst busqueda = ($('Ejecutar Workflow').first().json.busqueda ?? '').trim();\n\n// Detect empty result\nconst rows = (items.length === 1 && !items[0].json.property_id) ? [] : items;\n\nif (rows.length === 0) {\n  return [{ json: { resultado: `🔍 No se encontraron clientes interesados en \"${busqueda}\". Verifica el código o la dirección.` } }];\n}\n\n// ── Group by property ─────────────────────────────────────────────────────────\nconst propMap = {};\nrows.forEach(it => {\n  const r = it.json;\n  const pid = r.property_id;\n  if (!propMap[pid]) {\n    propMap[pid] = {\n      code: r.property_code,\n      address: r.property_address,\n      status: r.property_status,\n      clientMap: {}\n    };\n  }\n  // ── Group by client within property ────────────────────────────────────────\n  const cid = r.client_id;\n  if (!propMap[pid].clientMap[cid]) {\n    propMap[pid].clientMap[cid] = {\n      name: r.client_name,\n      phone: r.phone,\n      email: r.email,\n      registrations: [],\n      notes: []\n    };\n  }\n  propMap[pid].clientMap[cid].registrations.push({\n    interest_level: r.interest_level,\n    interest_date: r.interest_date,\n    notes: r.notes\n  });\n  if (r.notes) propMap[pid].clientMap[cid].notes.push(r.notes);\n});\n\nconst levelRank = { 'Muy Alto': 4, 'Alto': 3, 'Medio': 2, 'Bajo': 1 };\nconst levelEmoji = { 'Muy Alto': '🔥', 'Alto': '⬆️', 'Medio': '➡️', 'Bajo': '⬇️' };\n\nconst props = Object.values(propMap);\n\n// Multiple properties → disambiguation\nif (props.length > 1) {\n  const lista = props.map((p, i) => {\n    const uniqueClients = Object.keys(p.clientMap).length;\n    return `${i + 1}. *${p.code}* - ${p.address} (${uniqueClients} cliente(s) único(s))`;\n  }).join('\\n');\n  return [{\n    json: {\n      resultado: `🏠 Encontré ${props.length} inmuebles en \"${busqueda}\" con interesados:\\n\\n${lista}\\n\\n👉 Indícame el código exacto para ver su lista de clientes (ej: 002).`\n    }\n  }];\n}\n\n// Single property → list clients (grouped & consolidated)\nconst prop = props[0];\nconst clients = Object.values(prop.clientMap);\n\n// Sort: by highest interest_level then by most registrations\nclients.sort((a, b) => {\n  const maxA = Math.max(...a.registrations.map(r => levelRank[r.interest_level] || 0));\n  const maxB = Math.max(...b.registrations.map(r => levelRank[r.interest_level] || 0));\n  if (maxB !== maxA) return maxB - maxA;\n  return b.registrations.length - a.registrations.length;\n});\n\nconst lines = [\n  `👥 *Clientes Interesados — Inmueble ${prop.code}*`,\n  `📍 ${prop.address} | Estado: ${prop.status}`,\n  `Total: ${clients.length} cliente(s) único(s)`,\n  ''\n];\n\nclients.forEach((c, i) => {\n  // Take highest interest level across all registrations\n  const maxLevel = c.registrations.reduce((best, r) => {\n    return (levelRank[r.interest_level] || 0) > (levelRank[best] || 0) ? r.interest_level : best;\n  }, 'Bajo');\n\n  const emoji = levelEmoji[maxLevel] || '•';\n  const count = c.registrations.length;\n  const countLabel = count > 1 ? ` *(registrado ${count}x — interés elevado)*` : '';\n\n  lines.push(`${i + 1}. ${emoji} *${c.name}*${countLabel}`);\n  lines.push(`   📞 ${c.phone}${c.email ? ' | ✉️ ' + c.email : ''}`);\n  lines.push(`   Nivel de interés: ${maxLevel}`);\n\n  // Show notes (deduplicated)\n  const uniqueNotes = [...new Set(c.notes.filter(Boolean))];\n  if (uniqueNotes.length > 0) {\n    lines.push(`   💬 ${uniqueNotes.join(' | ')}`);\n  }\n\n  lines.push('');\n});\n\nreturn [{ json: { resultado: lines.join('\\n') } }];"
       },
-      "id": "331599bb-f812-41ac-8ad7-52b661133d8a",
-      "name": "¿Hay Interesados?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        -4016,
-        -864
-      ]
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "r_empty",
-              "name": "resultado",
-              "value": "=ℹ️ No hay clientes interesados registrados para el inmueble con código '{{ $('Ejecutar Workflow').item.json.codigo_inmueble }}'.",
-              "type": "string"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "5e0cd98f-0f9a-4d34-9f74-2af052854df4",
-      "name": "Sin Interesados",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        -3792,
-        -752
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "const items = $input.all();\nconst propertyCode = items[0].json.property_code;\nconst propertyAddress = items[0].json.property_address;\n\nconst levelEmoji = {\n  'Muy Alto': '🔥',\n  'Alto': '⬆️',\n  'Medio': '➡️',\n  'Bajo': '⬇️'\n};\n\nlet lines = [\n  `👥 *Interesados - ${propertyCode}*`,\n  `📍 ${propertyAddress}`,\n  `Total: ${items.length} cliente(s)`,\n  ''\n];\n\nitems.forEach((item, i) => {\n  const c = item.json;\n  const emoji = levelEmoji[c.interest_level] || '•';\n  const date = new Date(c.interest_date).toLocaleDateString('es-EC');\n  lines.push(`${i + 1}. ${emoji} *${c.client_name}*`);\n  lines.push(`   📞 ${c.phone}${c.email ? ' | ✉️ ' + c.email : ''}`);\n  lines.push(`   Interés: ${c.interest_level} | Fecha: ${date}`);\n  if (c.notes) lines.push(`   💬 ${c.notes}`);\n  lines.push('');\n});\n\nreturn [{ json: { resultado: lines.join('\\n') } }];"
-      },
-      "id": "de035b7c-73e1-471b-b54e-73253644831e",
+      "id": "b0ade847-1630-4e67-85a5-d044a3cfd675",
       "name": "Formatear Interesados",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -3792,
-        -976
+        1968,
+        2096
       ]
     },
     {
       "parameters": {
-        "inputSource": "passthrough"
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "busqueda"
+            }
+          ]
+        }
       },
-      "id": "63d8c043-9ea0-499b-b1b2-61fbd0fa7714",
+      "id": "ecba5f70-28ae-4e2b-82e2-c202a9b0f999",
       "name": "Ejecutar Workflow",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
       "position": [
-        -4544,
-        -1840
+        1472,
+        2096
       ]
     },
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT\n  c.first_name || ' ' || c.last_name AS client_name,\n  c.phone,\n  c.email,\n  pi.interest_level,\n  pi.interest_date,\n  pi.notes,\n  pi.id AS interest_id,\n  p.code AS property_code,\n  p.address AS property_address\nFROM property_interests pi\nJOIN clients c ON c.id = pi.client_id\nJOIN properties p ON p.id = pi.property_id\nWHERE p.code = $1\n  AND p.is_active = true\nORDER BY\n  CASE pi.interest_level\n    WHEN 'Muy Alto' THEN 1\n    WHEN 'Alto' THEN 2\n    WHEN 'Medio' THEN 3\n    WHEN 'Bajo' THEN 4\n    ELSE 5\n  END,\n  pi.interest_date DESC;",
-        "options": {}
+        "query": "SELECT\n  c.id AS client_id,\n  c.first_name || ' ' || c.last_name AS client_name,\n  c.phone,\n  c.email,\n  pi.interest_level,\n  pi.interest_date,\n  pi.notes,\n  pi.id AS interest_id,\n  p.id   AS property_id,\n  p.code AS property_code,\n  p.address AS property_address,\n  p.status AS property_status\nFROM property_interests pi\nJOIN clients c ON c.id = pi.client_id\nJOIN properties p ON p.id = pi.property_id\nWHERE p.is_active = true\n  AND (\n    p.code ILIKE $1\n    OR p.address ILIKE ('%' || $1 || '%')\n  )\nORDER BY\n  p.code,\n  pi.interest_date DESC;",
+        "options": {
+          "queryReplacement": "={{ ($('Ejecutar Workflow').item.json.busqueda ?? '').trim() }}"
+        }
       },
-      "id": "f68e588c-29cf-4a6b-8355-42e02f584e8c",
+      "id": "c5505838-9d76-432c-bbff-6f42913d73ef",
       "name": "Consultar Interesados BD",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -4240,
-        -864
+        1712,
+        2096
       ],
+      "alwaysOutputData": true,
       "credentials": {
         "postgres": {
           "id": "v1dzgvZcEPtlXg6K",
@@ -112,7 +71,7 @@
         ]
       ]
     },
-    "¿Hay Interesados?": {
+    "Consultar Interesados BD": {
       "main": [
         [
           {
@@ -120,40 +79,21 @@
             "type": "main",
             "index": 0
           }
-        ],
-        [
-          {
-            "node": "Sin Interesados",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Consultar Interesados BD": {
-      "main": [
-        [
-          {
-            "node": "¿Hay Interesados?",
-            "type": "main",
-            "index": 0
-          }
         ]
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "a6c088bb-43a2-4004-9eb4-bb35caa19a0f",
+  "versionId": "22a305ed-c614-450a-a78b-12d6bdf94c9f",
   "meta": {
-    "templateCredsSetupCompleted": true,
     "instanceId": "f5b03b15138dc35178a357541b8b254ab51ce8bbeabf497031c72421b8fcb7ee"
   },
-  "id": "WF_TOOL_LISTAR_INTERESADOS_001",
+  "id": "HkcloGQudyS1huJBwfysO",
   "tags": [
     {
       "updatedAt": "2026-03-01T19:37:32.830Z",
