@@ -27,59 +27,6 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "conditions": [
-            {
-              "id": "c1",
-              "leftValue": "={{ $json.proceso_id }}",
-              "rightValue": "",
-              "operator": {
-                "type": "string",
-                "operation": "notEmpty",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {
-          "looseTypeValidation": true
-        }
-      },
-      "id": "d5d2a086-8956-4578-82bd-1221105a2c54",
-      "name": "¿Hay Procesos?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [
-        1584,
-        3408
-      ]
-    },
-    {
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "r_empty",
-              "name": "resultado",
-              "value": "={{ $json.resultado }}",
-              "type": "string"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "058fd96c-23c5-4832-bd22-4dbeca8dfd04",
-      "name": "Sin Procesos",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        1792,
-        3520
-      ]
-    },
-    {
-      "parameters": {
         "workflowInputs": {
           "values": [
             {
@@ -102,7 +49,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst wf = $('Ejecutar Workflow').first().json;\nconst busqueda = (wf.busqueda ?? '').trim();\nconst soloUltimo = String(wf.solo_ultimo ?? '').toLowerCase() === 'true';\n\n// Detect empty result (postgres outputs 1 empty item when 0 rows)\nconst rows = (items.length === 1 && Object.keys(items[0].json).length === 0) ? [] : items;\n\nif (rows.length === 0) {\n  return [{ json: { resultado: `🔍 No se encontraron procesos para el inmueble \"${busqueda}\". Verifica el código o la dirección.` } }];\n}\n\n// Group rows by property\nconst propMap = {};\nrows.forEach(it => {\n  const r = it.json;\n  if (!propMap[r.property_id]) {\n    propMap[r.property_id] = {\n      code: r.property_code,\n      address: r.property_address,\n      status: r.property_status,\n      processes: []\n    };\n  }\n  propMap[r.property_id].processes.push(r);\n});\n\nconst props = Object.values(propMap);\n\n// Multiple properties detected → ask for clarification\nif (props.length > 1) {\n  const lista = props.map((p, i) => `${i + 1}. *${p.code}* - ${p.address}`).join('\\n');\n  return [{\n    json: {\n      resultado: `🏠 Encontré ${props.length} inmuebles en \"${busqueda}\":\\n\\n${lista}\\n\\n👉 Indícame el código exacto para ver sus procesos.`\n    }\n  }];\n}\n\n// Single property → list its processes\nconst prop = props[0];\nconst procesos = soloUltimo ? [prop.processes[0]] : prop.processes;\n\nconst lines = [\n  `📋 *Procesos — Inmueble ${prop.code}*`,\n  `📍 ${prop.address}`,\n  `📊 Estado: ${prop.status}`,\n  `📦 Total: ${prop.processes.length} proceso(s)${soloUltimo ? ' (mostrando el más reciente)' : ''}`,\n  ''\n];\n\nprocesos.forEach((p, i) => {\n  const fecha = new Date(p.created_at).toLocaleDateString('es-EC', {\n    day: '2-digit', month: '2-digit', year: 'numeric'\n  });\n  const actualizado = new Date(p.updated_at).toLocaleDateString('es-EC', {\n    day: '2-digit', month: '2-digit', year: 'numeric'\n  });\n  lines.push(`*${soloUltimo ? '🕐 Último proceso' : (i + 1) + '.'} ${p.title}*`);\n  lines.push(`   👤 Parte: ${p.type}`);\n  lines.push(`   📝 ${p.description}`);\n  if (p.next_step) lines.push(`   ➡️ Siguiente paso: ${p.next_step}`);\n  if (p.approximate_time) lines.push(`   ⏱️ Duración: ${p.approximate_time}`);\n  lines.push(`   📅 Registrado: ${fecha} • Actualizado: ${actualizado}`);\n  lines.push('');\n});\n\nreturn [{ json: { resultado: lines.join('\\n') } }];"
+        "jsCode": "const items = $input.all();\nconst wf = $('Ejecutar Workflow').first().json;\nconst busqueda = (wf.busqueda ?? '').trim();\nconst soloUltimo = String(wf.solo_ultimo ?? '').toLowerCase() === 'true';\n\n// Detect empty result (postgres node with alwaysOutputData outputs 1 empty item when 0 rows)\nconst rows = (items.length === 1 && !items[0].json.proceso_id) ? [] : items;\n\nif (rows.length === 0) {\n  return [{ json: { resultado: `🔍 No se encontraron procesos para el inmueble \"${busqueda}\". Verifica el código o la dirección.` } }];\n}\n\n// Group rows by property_id\nconst propMap = {};\nrows.forEach(it => {\n  const r = it.json;\n  const pid = r.property_id;\n  if (!propMap[pid]) {\n    propMap[pid] = {\n      code: r.property_code,\n      address: r.property_address,\n      status: r.property_status,\n      processes: []\n    };\n  }\n  propMap[pid].processes.push(r);\n});\n\nconst props = Object.values(propMap);\n\n// Multiple properties → ask for clarification\nif (props.length > 1) {\n  const lista = props.map((p, i) =>\n    `${i + 1}. *${p.code}* - ${p.address} (${p.processes.length} proceso(s))`\n  ).join('\\n');\n  return [{\n    json: {\n      resultado: `🏠 Encontré ${props.length} inmuebles en \"${busqueda}\" con procesos:\\n\\n${lista}\\n\\n👉 Indícame el código exacto para ver el detalle de sus procesos (ej: 002).`\n    }\n  }];\n}\n\n// Single property → show timeline\nconst prop = props[0];\nconst procesos = soloUltimo ? [prop.processes[0]] : prop.processes;\n\nconst lines = [\n  `📋 *Historial de Procesos — Inmueble ${prop.code}*`,\n  `📍 ${prop.address} | Estado: ${prop.status}`,\n  `📦 Total registrado: ${prop.processes.length} proceso(s)${soloUltimo ? ' (mostrando el más reciente)' : ''}`,\n  ''\n];\n\nprocesos.forEach((p, i) => {\n  const fecha = new Date(p.created_at).toLocaleDateString('es-EC', {\n    day: '2-digit', month: 'long', year: 'numeric'\n  });\n  lines.push(`${soloUltimo ? '🕐' : ('*' + (i + 1) + '.*')} *${p.title}*`);\n  lines.push(`   👤 Parte: ${p.type}`);\n  lines.push(`   📝 ${p.description}`);\n  if (p.next_step) lines.push(`   ➡️ Siguiente paso: ${p.next_step}`);\n  if (p.approximate_time) lines.push(`   ⏱️ Duración estimada: ${p.approximate_time}`);\n  if (p.expenses && Array.isArray(p.expenses) && p.expenses.length > 0) {\n    const totalGastos = p.expenses.reduce((acc, e) => acc + Number(e.amount || 0), 0);\n    const detalleGastos = p.expenses.map(e => `$${e.amount} - ${e.description}`).join(', ');\n    lines.push(`   💰 Gastos: ${detalleGastos} (Total: $${totalGastos})`);\n  }\n  lines.push(`   📅 ${fecha}`);\n  lines.push('');\n});\n\nreturn [{ json: { resultado: lines.join('\\n') } }];"
       },
       "id": "76d9d8f7-5de1-4880-bfa2-a0dc3a22c85c",
       "name": "Formatear Procesos",
@@ -131,25 +78,7 @@
       "main": [
         [
           {
-            "node": "¿Hay Procesos?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "¿Hay Procesos?": {
-      "main": [
-        [
-          {
             "node": "Formatear Procesos",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Sin Procesos",
             "type": "main",
             "index": 0
           }
