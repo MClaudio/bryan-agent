@@ -906,8 +906,9 @@
         "description": "Consulta el historial de procesos (trámites) de un inmueble.\nCasos de uso:\n- \"¿Qué procesos tiene el inmueble 002?\" → busqueda=\"002\"\n- \"Procesos en Las Nieves\" → busqueda=\"Las Nieves\" (si hay varios, pedirá el código)\n- \"¿Cuál es el último proceso de 002?\" → busqueda=\"002\", solo_ultimo=\"true\"\n- \"¿Qué se ha hecho en la propiedad 002?\" → busqueda=\"002\"\nSi la respuesta incluye múltiples inmuebles, muéstrale la lista y pide el código exacto.",
         "workflowId": {
           "__rl": true,
-          "value": "WF_TOOL_CONSULTAR_PROCESO_001",
-          "mode": "id"
+          "value": "RDV9l__Yq1ySMVuo_0zNF",
+          "mode": "id",
+          "cachedResultUrl": "/workflow/RDV9l__Yq1ySMVuo_0zNF"
         },
         "workflowInputs": {
           "mappingMode": "defineBelow",
@@ -1885,7 +1886,7 @@
     "availableInMCP": false,
     "callerPolicy": "workflowsFromSameOwner"
   },
-  "versionId": "a92755e6-32de-4edb-b4cb-399a8917479e",
+  "versionId": "fa2dc3d2-f77b-4d75-8970-c0322b38bb73",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "f5b03b15138dc35178a357541b8b254ab51ce8bbeabf497031c72421b8fcb7ee"
