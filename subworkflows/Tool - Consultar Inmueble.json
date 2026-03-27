@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst wf = $('Ejecutar Workflow').first().json;\nconst props = (items.length === 1 && Object.keys(items[0].json).length === 0) ? [] : items;\n\nif (props.length === 0) {\n  return [{ json: { id: null, resultado: '🔍 No se encontró ningún inmueble activo para: *' + wf.busqueda + '*. Verifica el código o la dirección.' } }];\n}\n\nif (props.length === 1) {\n  return [{ json: { ...props[0].json, resultado: null } }];\n}\n\n// Múltiples resultados\nconst lista = props.map((it, i) => {\n  const p = it.json;\n  return (i + 1) + '. *' + p.code + '* - ' + p.property_type + ' en ' + p.address + ' ($' + Number(p.price).toLocaleString('es-EC') + ')';\n}).join('\\n');\n\nreturn [{\n  json: {\n    id: null,\n    resultado: '🏠 Encontré ' + props.length + ' inmuebles para tu búsqueda de \"' + wf.busqueda + '\":\\n\\n' + lista + '\\n\\n👉 Por favor, pregúntale al asesor cuál es el código exacto de la propiedad que desea consultar (ej: ST-001).'\n  }\n}];"
+        "jsCode": "const items = $input.all();\nconst wf = $('Ejecutar Workflow').first().json;\nconst busqueda = (wf.busqueda ?? '').trim();\nconst filtroStatus = (wf.filtro_status ?? '').trim();\nconst filtroTipo = (wf.filtro_tipo ?? '').trim();\n\n// Detect empty rows (postgres node outputs 1 empty item when 0 results)\nconst props = (items.length === 1 && Object.keys(items[0].json).length === 0) ? [] : items;\n\nif (props.length === 0) {\n  const contexto = busqueda ? `para \"${busqueda}\"` : (filtroStatus || filtroTipo ? 'con los filtros indicados' : 'en la base de datos');\n  return [{ json: { id: null, resultado: `🔍 No se encontró ningún inmueble activo ${contexto}.` } }];\n}\n\nif (props.length === 1) {\n  // Single result: return full detail\n  return [{ json: { ...props[0].json, resultado: null } }];\n}\n\n// Multiple results: build list\nconst lista = props.map((it, i) => {\n  const p = it.json;\n  const precio = p.price ? ' ($' + Number(p.price).toLocaleString('es-EC') + ')' : '';\n  return `${i + 1}. *${p.code}* - ${p.property_type} en ${p.address}${precio} | Estado: ${p.status}`;\n}).join('\\n');\n\nconst titulo = busqueda\n  ? `🏠 Encontré ${props.length} inmuebles para \"${busqueda}\":`\n  : `🏠 Lista de inmuebles (${props.length} en total):`;\n\nreturn [{\n  json: {\n    id: null,\n    resultado: `${titulo}\\n\\n${lista}\\n\\n👉 Indícame el código exacto para ver todos los detalles (ej: 001, 002).`\n  }\n}];"
       },
       "id": "c70ad18a-2f6b-4118-b4df-a5bc1ee95ce9",
       "name": "Evaluar Resultados Consulta",
@@ -20,6 +20,12 @@
           "values": [
             {
               "name": "busqueda"
+            },
+            {
+              "name": "filtro_status"
+            },
+            {
+              "name": "filtro_tipo"
             }
           ]
         }
@@ -82,9 +88,9 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "SELECT\n  p.id,\n  p.code,\n  p.address,\n  p.property_type,\n  p.status,\n  p.price,\n  p.min_price,\n  p.max_price,\n  p.sale_price,\n  p.commission,\n  p.construction_area,\n  p.land_area,\n  p.has_basic_services,\n  p.features,\n  p.topography,\n  p.zone,\n  p.construction_years,\n  p.owner,\n  p.observations,\n  p.location_url,\n  p.is_public,\n  p.is_featured,\n  p.created_at,\n  u.first_name || ' ' || u.last_name AS advisor_name,\n  (SELECT COUNT(*) FROM property_interests pi WHERE pi.property_id = p.id) AS total_interesados,\n  (SELECT COUNT(*) FROM processes pr WHERE pr.property_id = p.id) AS total_procesos\nFROM properties p\nJOIN users u ON u.id = p.advisor_id\nWHERE (p.code ILIKE $1 OR p.address ILIKE $2 OR $3 ILIKE '%' || p.address || '%')\n  AND p.is_active = true\nLIMIT 10;",
+        "query": "SELECT\n  p.id,\n  p.code,\n  p.address,\n  p.property_type,\n  p.status,\n  p.price,\n  p.min_price,\n  p.max_price,\n  p.sale_price,\n  p.commission,\n  p.construction_area,\n  p.land_area,\n  p.has_basic_services,\n  p.features,\n  p.topography,\n  p.zone,\n  p.construction_years,\n  p.owner,\n  p.observations,\n  p.location_url,\n  p.is_public,\n  p.is_featured,\n  p.created_at,\n  u.first_name || ' ' || u.last_name AS advisor_name,\n  (SELECT COUNT(*) FROM property_interests pi WHERE pi.property_id = p.id) AS total_interesados,\n  (SELECT COUNT(*) FROM processes pr WHERE pr.property_id = p.id) AS total_procesos\nFROM properties p\nJOIN users u ON u.id = p.advisor_id\nWHERE p.is_active = true\n  AND (\n    $1 = ''\n    OR p.code ILIKE $1\n    OR p.address ILIKE ('%' || $1 || '%')\n  )\n  AND ($2 = '' OR p.status::text ILIKE $2)\n  AND ($3 = '' OR p.property_type::text ILIKE $3)\nORDER BY p.created_at DESC\nLIMIT 20;",
         "options": {
-          "queryReplacement": "={{ [\n  $('Ejecutar Workflow').item.json.busqueda,\n  '%' + $('Ejecutar Workflow').item.json.busqueda + '%',\n  $('Ejecutar Workflow').item.json.busqueda\n] }}"
+          "queryReplacement": "={{ [\n  ($('Ejecutar Workflow').item.json.busqueda ?? '').trim(),\n  ($('Ejecutar Workflow').item.json.filtro_status ?? '').trim(),\n  ($('Ejecutar Workflow').item.json.filtro_tipo ?? '').trim()\n] }}"
         }
       },
       "id": "0f24449f-eec5-4a9d-af73-63ce427f5562",

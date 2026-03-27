@@ -831,7 +831,7 @@
     },
     {
       "parameters": {
-        "description": "Consulta la información maestra/completa detallada de un inmueble (precios, áreas, urls, descripciones). \nAntes de brindar info técnica de algo, primero MÁNDALE la dirección a esta herramienta. Si la herramienta te responde que detectó MUCHOS inmuebles, devuélvele la lista al usuario para que confirme cuál código quiere consultar.",
+        "description": "Usa esta herramienta para CUALQUIER consulta sobre inmuebles/propiedades:\n- \"Dame la lista de inmuebles\" → busqueda=\"\" (vacío = todos)\n- \"Inmuebles disponibles\" → busqueda=\"\" filtro_status=\"Nuevo\"\n- \"Inmuebles vendidos\" → busqueda=\"\" filtro_status=\"Vendido\"\n- \"Terrenos disponibles\" → busqueda=\"\" filtro_tipo=\"Terreno\"\n- \"El inmueble 002\" → busqueda=\"002\"\n- \"Propiedades en Las Nieves\" → busqueda=\"Las Nieves\"\nSi hay múltiples resultados, muéstrale la lista al asesor y pide que confirme el código exacto.\nNUNCA uses Vincular Interesado para consultar propiedades — esa es solo para clientes.",
         "workflowId": {
           "__rl": true,
           "value": "09EB34_9M6d7iHNfEbNj7",
@@ -841,7 +841,9 @@
         "workflowInputs": {
           "mappingMode": "defineBelow",
           "value": {
-            "busqueda": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('busqueda', ``, 'string') }}"
+            "busqueda": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('busqueda', `Código exacto (ej: 001) o palabras clave del sector/dirección (ej: Las Nieves). Deja VACÍO \"\" para listar todos los inmuebles.`, 'string') }}",
+            "filtro_status": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('filtro_status', `Filtrar por estado: Nuevo, Negociación, Vendido. Deja vacío para no filtrar.`, 'string') }}",
+            "filtro_tipo": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('filtro_tipo', `Filtrar por tipo: Casa, Terreno, Casa y terreno, Departamento, Finca, Lote. Deja vacío para no filtrar.`, 'string') }}"
           },
           "matchingColumns": [
             "busqueda"
@@ -856,11 +858,32 @@
               "canBeUsedToMatch": true,
               "type": "string",
               "removed": false
+            },
+            {
+              "id": "filtro_status",
+              "displayName": "filtro_status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false,
+              "type": "string",
+              "removed": false
+            },
+            {
+              "id": "filtro_tipo",
+              "displayName": "filtro_tipo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false,
+              "type": "string",
+              "removed": false
             }
           ],
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
-        }
+        },
+        "schemaFormRequired": []
       },
       "id": "3055b015-6ede-4a05-9da8-3a5b0b297eb4",
       "name": "Herramienta: Consultar Inmueble",
