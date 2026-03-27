@@ -1,0 +1,243 @@
+{
+  "name": "Tool - Enviar Mensaje Cliente",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "nombre_cliente"
+            },
+            {
+              "name": "telefono_destino"
+            },
+            {
+              "name": "mensaje"
+            },
+            {
+              "name": "server_url"
+            },
+            {
+              "name": "instance_name"
+            },
+            {
+              "name": "apikey"
+            }
+          ]
+        }
+      },
+      "id": "msg-node-001",
+      "name": "Ejecutar Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        800,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ ($('Ejecutar Workflow').item.json.telefono_destino ?? '').trim().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "msg-node-002",
+      "name": "¿Enviar Directo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  c.first_name || ' ' || c.last_name AS nombre_completo,\n  c.phone\nFROM clients c\nWHERE\n  c.phone ILIKE $1\n  OR c.first_name ILIKE ('%' || $2 || '%')\n  OR c.last_name ILIKE ('%' || $2 || '%')\n  OR (c.first_name || ' ' || c.last_name) ILIKE ('%' || $2 || '%')\nORDER BY c.first_name, c.last_name\nLIMIT 10;",
+        "options": {
+          "queryReplacement": "={{ [\n  ($('Ejecutar Workflow').item.json.nombre_cliente ?? '').trim(),\n  ($('Ejecutar Workflow').item.json.nombre_cliente ?? '').trim()\n] }}"
+        }
+      },
+      "id": "msg-node-003",
+      "name": "Buscar Cliente BD",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        1280,
+        560
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "v1dzgvZcEPtlXg6K",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst wf = $('Ejecutar Workflow').first().json;\nconst busqueda = (wf.nombre_cliente ?? '').trim();\n\n// Detect empty result\nconst rows = (items.length === 1 && !items[0].json.phone) ? [] : items;\n\nif (rows.length === 0) {\n  return [{ json: { resultado: `🔍 No se encontró ningún cliente con el nombre \"${busqueda}\". Verifica el nombre o el teléfono.` } }];\n}\n\nif (rows.length === 1) {\n  const c = rows[0].json;\n  return [{ json: { resultado: `CLIENTE_UNICO|${c.nombre_completo}|${c.phone}` } }];\n}\n\n// Multiple clients → disambiguation list\nconst lista = rows.map((it, i) => {\n  const c = it.json;\n  return `${i + 1} - ${c.nombre_completo} - ${c.phone}`;\n}).join('\\n');\n\nreturn [{ json: { resultado: `MULTIPLES_CLIENTES\\nSe encontraron múltiples clientes:\\n${lista}\\n\\nResponde con el número de lista, nombre completo o teléfono del cliente correcto.` } }];"
+      },
+      "id": "msg-node-004",
+      "name": "Evaluar Clientes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1520,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Ejecutar Workflow').item.json.server_url }}/message/sendText/{{ $('Ejecutar Workflow').item.json.instance_name }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $('Ejecutar Workflow').item.json.apikey }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"number\": $('Ejecutar Workflow').item.json.telefono_destino, \"text\": $('Ejecutar Workflow').item.json.mensaje }) }}",
+        "options": {}
+      },
+      "id": "msg-node-005",
+      "name": "Enviar Mensaje WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1280,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "r1",
+              "name": "resultado",
+              "value": "=✅ Mensaje enviado exitosamente a {{ $('Ejecutar Workflow').item.json.telefono_destino }}.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "msg-node-006",
+      "name": "Resultado Envío",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1520,
+        240
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Ejecutar Workflow": {
+      "main": [
+        [
+          {
+            "node": "¿Enviar Directo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Enviar Directo?": {
+      "main": [
+        [
+          {
+            "node": "Enviar Mensaje WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Cliente BD",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Cliente BD": {
+      "main": [
+        [
+          {
+            "node": "Evaluar Clientes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Mensaje WhatsApp": {
+      "main": [
+        [
+          {
+            "node": "Resultado Envío",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "msg-tool-v1-0000-0000-000000000001",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f5b03b15138dc35178a357541b8b254ab51ce8bbeabf497031c72421b8fcb7ee"
+  },
+  "id": "WF_TOOL_ENVIAR_MENSAJE_001",
+  "tags": [
+    {
+      "updatedAt": "2026-03-01T19:37:32.830Z",
+      "createdAt": "2026-03-01T19:37:32.830Z",
+      "id": "5014ny6hlFfltdsq",
+      "name": "Bryan Real Estate"
+    },
+    {
+      "updatedAt": "2026-03-11T00:22:54.830Z",
+      "createdAt": "2026-03-11T00:22:54.830Z",
+      "id": "rWw1J3dBOKSk924S",
+      "name": "Bryan Ulloa"
+    }
+  ]
+}
