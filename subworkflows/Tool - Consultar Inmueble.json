@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst wf = $('Ejecutar Workflow').first().json;\nconst busqueda = (wf.busqueda ?? '').trim();\nconst filtroStatus = (wf.filtro_status ?? '').trim();\nconst filtroTipo = (wf.filtro_tipo ?? '').trim();\n\n// Detect empty rows (postgres node outputs 1 empty item when 0 results)\nconst props = (items.length === 1 && Object.keys(items[0].json).length === 0) ? [] : items;\n\nif (props.length === 0) {\n  const contexto = busqueda ? `para \"${busqueda}\"` : (filtroStatus || filtroTipo ? 'con los filtros indicados' : 'en la base de datos');\n  return [{ json: { id: null, resultado: `🔍 No se encontró ningún inmueble activo ${contexto}.` } }];\n}\n\nif (props.length === 1) {\n  // Single result: return full detail\n  return [{ json: { ...props[0].json, resultado: null } }];\n}\n\n// Multiple results: build list\nconst lista = props.map((it, i) => {\n  const p = it.json;\n  const precio = p.price ? ' ($' + Number(p.price).toLocaleString('es-EC') + ')' : '';\n  return `${i + 1}. *${p.code}* - ${p.property_type} en ${p.address}${precio} | Estado: ${p.status}`;\n}).join('\\n');\n\nconst titulo = busqueda\n  ? `🏠 Encontré ${props.length} inmuebles para \"${busqueda}\":`\n  : `🏠 Lista de inmuebles (${props.length} en total):`;\n\nreturn [{\n  json: {\n    id: null,\n    resultado: `${titulo}\\n\\n${lista}\\n\\n👉 Indícame el código exacto para ver todos los detalles (ej: 001, 002).`\n  }\n}];"
+        "jsCode": "const items = $input.all();\nconst wf = $('Ejecutar Workflow').first().json;\nconst busqueda = (wf.busqueda ?? '').trim();\nconst filtroStatus = (wf.filtro_status ?? '').trim();\nconst filtroTipo = (wf.filtro_tipo ?? '').trim();\n\n// Detect empty rows (postgres node outputs 1 empty item when 0 results)\nconst props = (items.length === 1 && Object.keys(items[0].json).length === 0) ? [] : items;\n\nif (props.length === 0) {\n  const contexto = busqueda ? `para \"${busqueda}\"` : (filtroStatus || filtroTipo ? 'con los filtros indicados' : 'en la base de datos');\n  return [{ json: { id: null, resultado: `🔍 No se encontró ningún inmueble activo ${contexto}.` } }];\n}\n\nif (props.length === 1) {\n  // Single result: return full detail\n  return [{ json: { ...props[0].json, resultado: '' } }];\n}\n\n// Multiple results: build list\nconst lista = props.map((it, i) => {\n  const p = it.json;\n  const precio = p.price ? ' ($' + Number(p.price).toLocaleString('es-EC') + ')' : '';\n  return `${i + 1}. *${p.code}* - ${p.property_type} en ${p.address}${precio} | Estado: ${p.status}`;\n}).join('\\n');\n\nconst titulo = busqueda\n  ? `🏠 Encontré ${props.length} inmuebles para \"${busqueda}\":`\n  : `🏠 Lista de inmuebles (${props.length} en total):`;\n\nreturn [{\n  json: {\n    id: null,\n    resultado: `${titulo}\\n\\n${lista}\\n\\n👉 Indícame el código exacto para ver todos los detalles (ej: 001, 002).`\n  }\n}];"
       },
       "id": "c70ad18a-2f6b-4118-b4df-a5bc1ee95ce9",
       "name": "Evaluar Resultados Consulta",
@@ -115,18 +115,20 @@
           "conditions": [
             {
               "id": "c1",
-              "leftValue": "={{ $json.id }}",
+              "leftValue": "={{ $json.resultado }}",
               "rightValue": "",
               "operator": {
                 "type": "string",
-                "operation": "notEmpty",
+                "operation": "empty",
                 "singleValue": true
               }
             }
           ],
           "combinator": "and"
         },
-        "options": {}
+        "options": {
+          "looseTypeValidation": true
+        }
       },
       "id": "c6baac6f-cf5b-4c6c-a05e-17dd72487cd7",
       "name": "¿Encontrado?",
