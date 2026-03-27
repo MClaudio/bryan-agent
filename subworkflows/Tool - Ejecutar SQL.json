@@ -4,29 +4,36 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "={{ $json.consulta_sql }}",
+        "query": "={{ $('Validar SQL Solo Lectura').first().json.consulta_sql }}",
         "options": {}
       },
-      "id": "sql-inline-0003-0000-0000-000000000003",
+      "id": "49b2bc22-82e2-406f-b21c-4559bd193065",
       "name": "Ejecutar SQL Inline",
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        -3360,
-        -1216
-      ]
+        2864,
+        1632
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "v1dzgvZcEPtlXg6K",
+          "name": "Postgres account"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const rows = $input.all().map(i => i.json);\nif (rows.length === 0) return [{json:{resultado:'ℹ️ La consulta no devolvió resultados.'}}];\nconst preview = rows.slice(0,10);\nreturn [{json:{resultado:`✅ Consulta ejecutada. Filas: ${rows.length}\\n\\n` + JSON.stringify(preview,null,2)}}];"
+        "jsCode": "const rows = $input.all().map(i => i.json);\n\n// Redact sensitive fields (passwords, tokens, UUIDs/IDs)\nconst SENSITIVE_EXACT = ['id', 'user_id', 'client_id', 'property_id', 'advisor_id', 'interest_id', 'proceso_id'];\nconst SENSITIVE_CONTAINS = ['password', 'token', 'apikey', 'api_key', 'secret', 'hash'];\n\nconst redact = (obj) => {\n  const out = { ...obj };\n  Object.keys(out).forEach(k => {\n    const kl = k.toLowerCase();\n    const isExact = SENSITIVE_EXACT.includes(kl);\n    const contains = SENSITIVE_CONTAINS.some(s => kl.includes(s));\n    // Any field ending in _id or named exactly 'id'\n    const isId = kl === 'id' || kl.endsWith('_id');\n    if (isExact || contains || isId) {\n      out[k] = '*** [oculto] ***';\n    }\n  });\n  return out;\n};\n\nif (rows.length === 0 || (rows.length === 1 && Object.keys(rows[0]).length === 0)) {\n  return [{ json: { resultado: 'ℹ️ La consulta no devolvió resultados.' } }];\n}\n\nconst clean = rows.map(redact);\nconst preview = clean.slice(0, 15);\nconst truncated = rows.length > 15 ? `\\n_(mostrando 15 de ${rows.length} filas)_` : '';\n\nreturn [{ json: { resultado: `✅ Consulta ejecutada. Filas encontradas: ${rows.length}${truncated}\\n\\`\\`\\`json\\n${JSON.stringify(preview, null, 2)}\\n\\`\\`\\`` } }];"
       },
-      "id": "sql-inline-0004-0000-0000-000000000004",
+      "id": "3b4c34e8-1fe1-4977-8ab1-8cad64eceb96",
       "name": "Resultado SQL Inline",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -3136,
-        -1216
+        3088,
+        1632
       ]
     },
     {
@@ -43,39 +50,45 @@
         },
         "options": {}
       },
-      "id": "sql-inline-0005-0000-0000-000000000005",
+      "id": "3068c8ab-93a2-47b6-951f-c3d8c7255df0",
       "name": "SQL Rechazada",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -3360,
-        -1024
+        2864,
+        1824
       ]
     },
     {
       "parameters": {
-        "jsCode": "const q = ($json.consulta_sql ?? '').trim();\nconst normalized = q.toLowerCase();\nconst forbidden = ['insert','update','delete','drop','alter','truncate','grant','revoke','create'];\nconst hasForbidden = forbidden.some(w => new RegExp('\\\\b'+w+'\\\\b','i').test(normalized));\nconst isSelect = /^select\\b/i.test(normalized);\nreturn [{ json: { ...$json, sql_valida: Boolean(q) && isSelect && !hasForbidden } }];"
+        "jsCode": "const q = ($('Ejecutar Workflow').first().json.consulta_sql ?? '').trim();\nconst normalized = q.toLowerCase();\nconst forbidden = ['insert','update','delete','drop','alter','truncate','grant','revoke','create'];\nconst hasForbidden = forbidden.some(w => new RegExp('\\\\b'+w+'\\\\b','i').test(normalized));\nconst isSelect = /^\\s*select\\b/i.test(normalized);\nreturn [{ json: { consulta_sql: q, sql_valida: Boolean(q) && isSelect && !hasForbidden } }];"
       },
-      "id": "sql-inline-0001-0000-0000-000000000001",
+      "id": "f94307ff-d299-456c-a3df-56549cfcbb4b",
       "name": "Validar SQL Solo Lectura",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -3808,
-        -1120
+        2416,
+        1728
       ]
     },
     {
       "parameters": {
-        "inputSource": "passthrough"
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "consulta_sql"
+            }
+          ]
+        }
       },
-      "id": "63d8c043-9ea0-499b-b1b2-61fbd0fa7714",
+      "id": "923de7ab-ec05-464a-85d9-d20700618591",
       "name": "Ejecutar Workflow",
       "type": "n8n-nodes-base.executeWorkflowTrigger",
       "typeVersion": 1.1,
       "position": [
-        -4544,
-        -1840
+        2192,
+        1728
       ]
     },
     {
@@ -102,13 +115,13 @@
         },
         "options": {}
       },
-      "id": "sql-inline-0002-0000-0000-000000000002",
+      "id": "5bff4ca6-886c-4287-ab82-199f6b1c57ef",
       "name": "¿SQL Válida?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        -3584,
-        -1120
+        2640,
+        1728
       ]
     }
   ],
@@ -119,17 +132,6 @@
         [
           {
             "node": "Validar SQL Solo Lectura",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Ejecutar SQL Inline": {
-      "main": [
-        [
-          {
-            "node": "Resultado SQL Inline",
             "type": "main",
             "index": 0
           }
@@ -164,20 +166,31 @@
           }
         ]
       ]
+    },
+    "Ejecutar SQL Inline": {
+      "main": [
+        [
+          {
+            "node": "Resultado SQL Inline",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "93dd4ac1-ad2f-4ac8-9a66-16022768718b",
+  "versionId": "e1b9bbad-75d9-4dc1-824a-4bb4c397f8c4",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "f5b03b15138dc35178a357541b8b254ab51ce8bbeabf497031c72421b8fcb7ee"
   },
-  "id": "WF_TOOL_EJECUTAR_SQL_001",
+  "id": "2BrVtXy40fYDf7in1HSEJ",
   "tags": [
     {
       "updatedAt": "2026-03-01T19:37:32.830Z",
