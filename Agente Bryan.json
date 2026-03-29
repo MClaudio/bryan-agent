@@ -293,11 +293,14 @@
             "duracion_minutos": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('duracion_minutos', `Duración en min (enviar vacio si no aplica)`, 'number') }}",
             "descripcion": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('descripcion', `Descripción del evento (enviar vacio si no aplica)`, 'string') }}",
             "email_invitado": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('email_invitado', `Email del invitado (enviar vacio si no aplica)`, 'string') }}",
-            "telefono_asesor": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('telefono_asesor', `Número telefono del asesor`, 'string') }}",
+            "telefono_asesor": "={{ $('Preparar Contexto del Agente').item.json.sender_phone }}",
             "hora_bloqueo_inicio": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('hora_bloqueo_inicio', `Hora inicio bloqueo HH:MM (vacio si no aplica)`, 'string') }}",
             "hora_bloqueo_fin": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('hora_bloqueo_fin', `Hora fin bloqueo HH:MM (vacio si no aplica)`, 'string') }}",
             "fecha_referencia": "={{ $('WhatsApp Trigger').item.json.body.date_time }}",
-            "modo": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('modo', `OBLIGATORIO: agendar, consultar, o listar`, 'string') }}"
+            "modo": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('modo', `OBLIGATORIO: agendar, consultar, o listar`, 'string') }}",
+            "nombre_asesor": "={{ $('Preparar Contexto del Agente').item.json.agent_name }}",
+            "nombre_cliente_cita": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('nombre_cliente_cita', `Nombre completo del cliente con quien se agenda la cita/reunión. Dejar vacío si no aplica (llamada interna, trámite, etc.)`, 'string') ?? '' }}",
+            "telefono_cliente_cita": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('telefono_cliente_cita', `Teléfono del cliente con quien se agenda. Dejar vacío si no se mencionó.`, 'string') ?? '' }}"
           },
           "matchingColumns": [],
           "schema": [
@@ -406,6 +409,33 @@
               "defaultMatch": false,
               "display": true,
               "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "nombre_asesor",
+              "displayName": "nombre_asesor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "nombre_cliente_cita",
+              "displayName": "nombre_cliente_cita",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false,
+              "removed": false
+            },
+            {
+              "id": "telefono_cliente_cita",
+              "displayName": "telefono_cliente_cita",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": false,
               "removed": false
             }
           ],

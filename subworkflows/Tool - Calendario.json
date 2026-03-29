@@ -112,7 +112,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const data = $input.first().json;\nconst datosEvento = $('Preparar Datos Evento1').item.json;\nconst busy = data.calendars?.primary?.busy ?? [];\n\nconst tipo = datosEvento.tipo_evento ?? 'Cita';\nconst horaBlqIni = datosEvento.hora_bloqueo_inicio ?? null;\nconst horaBlqFin = datosEvento.hora_bloqueo_fin ?? null;\n\nconst toHHMM = iso => new Date(iso).toLocaleTimeString('es-EC', {\n  hour: '2-digit', minute: '2-digit', timeZone: 'America/Guayaquil'\n});\n\nconst toFecha = iso => new Date(iso).toLocaleDateString('es-EC', {\n  weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',\n  timeZone: 'America/Guayaquil'\n});\n\n// Verificar restriccion horaria (solo para Cita y Reunion)\nif (horaBlqIni && horaBlqFin && ['Cita', 'Reunion'].includes(tipo)) {\n  const fechaEvento = new Date(datosEvento.fecha_inicio);\n  const [hIni, mIni] = horaBlqIni.split(':').map(Number);\n  const [hFin, mFin] = horaBlqFin.split(':').map(Number);\n  const minEvento = fechaEvento.getUTCHours() * 60 + fechaEvento.getUTCMinutes();\n  const minIni = hIni * 60 + mIni;\n  const minFin = hFin * 60 + mFin;\n  if (minEvento >= minIni && minEvento < minFin) {\n    return [{\n      json: {\n        tiene_conflicto: true,\n        es_restriccion_horaria: true,\n        hora_bloqueo_inicio: horaBlqIni,\n        hora_bloqueo_fin: horaBlqFin,\n        proximo_disponible_hora: horaBlqFin,\n        resultado: '⛔ El horario solicitado (' + toHHMM(datosEvento.fecha_inicio) + ') cae dentro del bloque restringido de ' + horaBlqIni + ' a ' + horaBlqFin + '. Por favor elige un horario fuera de ese rango.'\n      }\n    }];\n  }\n}\n\nif (busy.length === 0) {\n  return [{ json: { tiene_conflicto: false, es_restriccion_horaria: false } }];\n}\n\n// Ordenar periodos ocupados por inicio\nconst sorted = [...busy].sort((a, b) => new Date(a.start) - new Date(b.start));\n\n// Encontrar el fin mas tardio entre todos los conflictos\nlet latestEnd = sorted[0].end;\nfor (const p of sorted) {\n  if (new Date(p.end) > new Date(latestEnd)) latestEnd = p.end;\n}\n\nreturn [{\n  json: {\n    tiene_conflicto: true,\n    es_restriccion_horaria: false,\n    hora_bloqueo_inicio: horaBlqIni,\n    hora_bloqueo_fin: horaBlqFin,\n    conflicto_hora_inicio:   toHHMM(sorted[0].start),\n    conflicto_hora_fin:      toHHMM(sorted[0].end),\n    conflicto_fecha:         toFecha(sorted[0].start),\n    proximo_disponible_hora: toHHMM(latestEnd),\n    proximo_disponible_iso:  latestEnd,\n    total_conflictos: busy.length\n  }\n}];"
+        "jsCode": "const data = $input.first().json;\nconst datosEvento = $('Preparar Datos Evento1').item.json;\nconst busy = data.calendars?.primary?.busy ?? [];\n\nconst tipo = datosEvento.tipo_evento ?? 'Cita';\nconst horaBlqIni = datosEvento.hora_bloqueo_inicio || null;\nconst horaBlqFin  = datosEvento.hora_bloqueo_fin  || null;\n\nconst toHHMM = iso => new Date(iso).toLocaleTimeString('es-EC', {\n  hour: '2-digit', minute: '2-digit', timeZone: 'America/Guayaquil'\n});\nconst toFecha = iso => new Date(iso).toLocaleDateString('es-EC', {\n  weekday: 'long', day: '2-digit', month: 'long', year: 'numeric',\n  timeZone: 'America/Guayaquil'\n});\n\n// ── Restricción horaria explícita (solo si el asesor la definió) ───────────\nif (horaBlqIni && horaBlqFin && ['Cita', 'Reunión'].includes(tipo)) {\n  const fechaEvento = new Date(datosEvento.fecha_inicio);\n  const [hIni, mIni] = horaBlqIni.split(':').map(Number);\n  const [hFin, mFin] = horaBlqFin.split(':').map(Number);\n  const minEvento = fechaEvento.getUTCHours() * 60 + fechaEvento.getUTCMinutes();\n  const minIni = hIni * 60 + mIni;\n  const minFin = hFin * 60 + mFin;\n  if (minEvento >= minIni && minEvento < minFin) {\n    return [{\n      json: {\n        tiene_conflicto: true,\n        es_restriccion_horaria: true,\n        hora_bloqueo_inicio: horaBlqIni,\n        hora_bloqueo_fin: horaBlqFin,\n        proximo_disponible_hora: horaBlqFin,\n        resultado: '⛔ El horario solicitado (' + toHHMM(datosEvento.fecha_inicio) + ') cae dentro del bloque restringido de ' + horaBlqIni + ' a ' + horaBlqFin + '. Por favor elige un horario fuera de ese rango.'\n      }\n    }];\n  }\n}\n\nif (busy.length === 0) {\n  return [{ json: { tiene_conflicto: false, es_restriccion_horaria: false } }];\n}\n\n// ── Separar conflictos duros (solapamiento real) de blandos (solo margen) ──\nconst eventStart = new Date(datosEvento.fecha_inicio);\nconst duracion   = Number(datosEvento.duracion_minutos || 40);\nconst eventEnd   = new Date(eventStart.getTime() + duracion * 60_000);\n\nconst hardConflicts = busy.filter(p => {\n  const busyStart = new Date(p.start);\n  const busyEnd   = new Date(p.end);\n  // Real overlap: busy period starts before event ends AND ends after event starts\n  return busyStart < eventEnd && busyEnd > eventStart;\n});\n\nif (hardConflicts.length === 0) {\n  // No real overlap — the slot is free even if within the margin window\n  return [{ json: { tiene_conflicto: false, es_restriccion_horaria: false } }];\n}\n\n// ── Conflicto duro: calcular próxima hora disponible ────────────────────────\nconst sorted = [...hardConflicts].sort((a, b) => new Date(a.start) - new Date(b.start));\nlet latestEnd = sorted[0].end;\nfor (const p of sorted) {\n  if (new Date(p.end) > new Date(latestEnd)) latestEnd = p.end;\n}\n\n// Next available = end of the last conflicting event + margin\nconst margenMs = Number(datosEvento.margen_minutos || 40) * 60_000;\nconst proximoIso = new Date(new Date(latestEnd).getTime() + margenMs).toISOString();\n\nreturn [{\n  json: {\n    tiene_conflicto: true,\n    es_restriccion_horaria: false,\n    conflicto_hora_inicio:   toHHMM(sorted[0].start),\n    conflicto_hora_fin:      toHHMM(sorted[0].end),\n    conflicto_fecha:         toFecha(sorted[0].start),\n    proximo_disponible_hora: toHHMM(proximoIso),\n    proximo_disponible_iso:  proximoIso,\n    total_conflictos: hardConflicts.length\n  }\n}];"
       },
       "id": "8fffad27-24fb-4a5a-b227-5cc6851d5386",
       "name": "Verificar Conflicto",
@@ -318,7 +318,7 @@
             {
               "id": "s6",
               "name": "descripcion_completa",
-              "value": "={{ ($json.descripcion ? $json.descripcion + '\\n' : '') + '[asesor:' + ($('Ejecutar Workflow').item.json.telefono_asesor ?? '') + ']\\n[tipo:' + ($json.tipo_evento ?? 'Cita') + ']' }}",
+              "value": "={{ (() => {\n  const wf = $('Ejecutar Workflow').item.json;\n  const parts = [];\n  if ($json.descripcion) parts.push($json.descripcion);\n  const nombreAsesor = (wf.nombre_asesor ?? '').trim();\n  const telefonoAsesor = (wf.telefono_asesor ?? '').trim();\n  const nombreCliente = (wf.nombre_cliente_cita ?? '').trim();\n  const telefonoCliente = (wf.telefono_cliente_cita ?? '').trim();\n  if (nombreAsesor)   parts.push('[asesor:' + nombreAsesor + ']');\n  if (telefonoAsesor) parts.push('[tel_asesor:' + telefonoAsesor + ']');\n  if (nombreCliente)  parts.push('[cliente:' + nombreCliente + ']');\n  if (telefonoCliente) parts.push('[numero:' + telefonoCliente + ']');\n  parts.push('[tipo:' + ($json.tipo_evento ?? 'Cita') + ']');\n  return parts.join('\\n');\n})() }}",
               "type": "string"
             },
             {
@@ -336,13 +336,13 @@
             {
               "id": "s9",
               "name": "hora_bloqueo_inicio",
-              "value": "={{ $('Ejecutar Workflow').item.json.hora_bloqueo_inicio || DateTime.fromISO($json.fecha_inicio, {zone: 'America/Guayaquil'}).minus({ minutes: 10 }).toFormat('HH:mm') }}",
+              "value": "={{ ($('Ejecutar Workflow').item.json.hora_bloqueo_inicio ?? '').trim() }}",
               "type": "string"
             },
             {
               "id": "s10",
               "name": "hora_bloqueo_fin",
-              "value": "={{ $('Ejecutar Workflow').item.json.hora_bloqueo_fin || DateTime.fromISO($json.fecha_inicio, {zone: 'America/Guayaquil'}).plus({ minutes: 40 }).toFormat('HH:mm') }}",
+              "value": "={{ ($('Ejecutar Workflow').item.json.hora_bloqueo_fin ?? '').trim() }}",
               "type": "string"
             }
           ]
@@ -416,25 +416,45 @@
             {
               "id": "cb1",
               "leftValue": "={{ $('Preparar Datos Evento1').item.json.tipo_evento }}",
-              "rightValue": "Cita",
+              "rightValue": "Llamada",
               "operator": {
                 "type": "string",
-                "operation": "equals"
+                "operation": "notEquals"
               }
             },
             {
               "id": "cb2",
               "leftValue": "={{ $('Preparar Datos Evento1').item.json.tipo_evento }}",
-              "rightValue": "Reunion",
+              "rightValue": "Trámite",
               "operator": {
                 "type": "string",
-                "operation": "equals"
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "cb3",
+              "leftValue": "={{ ($('Preparar Datos Evento1').item.json.hora_bloqueo_inicio ?? '').trim() }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            },
+            {
+              "id": "cb4",
+              "leftValue": "={{ ($('Preparar Datos Evento1').item.json.hora_bloqueo_fin ?? '').trim() }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
               }
             }
           ],
-          "combinator": "or"
+          "combinator": "and"
         },
-        "options": {}
+        "options": {
+          "ignoreCase": true
+        }
       },
       "id": "9c65286c-afb6-49a3-8b38-3851e57d9eb3",
       "name": "¿Crear Bloqueo Persistente?",
@@ -606,6 +626,18 @@
             },
             {
               "name": "modo",
+              "type": "any"
+            },
+            {
+              "name": "nombre_asesor",
+              "type": "any"
+            },
+            {
+              "name": "nombre_cliente_cita",
+              "type": "any"
+            },
+            {
+              "name": "telefono_cliente_cita",
               "type": "any"
             }
           ]
