@@ -99,7 +99,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst wf = $('Ejecutar Workflow').item.json;\nconst dia = $('Calcular Día Consulta').item.json;\n\nconst diaInicio = new Date(dia.dia_inicio);\nconst diaFin = new Date(dia.dia_fin);\nconst tipoFiltro = String(dia.tipo_filtro || 'todos').toLowerCase();\nconst asesorPhone = (wf.telefono_asesor || '').trim();\n\nconst eventos = [];\n\nfor (const item of items) {\n  const ev = item.json;\n  const desc = ev.description || '';\n  const startRaw = ev.start?.dateTime || ev.start?.date;\n  if (!startRaw) continue;\n  const startDate = new Date(startRaw);\n  if (startDate < diaInicio || startDate > diaFin) continue;\n\n  if (asesorPhone) {\n    const m = desc.match(/\\[asesor:([^\\]]+)\\]/);\n    const phone = m ? m[1].trim() : '';\n    if (phone !== asesorPhone) continue;\n  }\n\n  let tipo = 'evento';\n  const mTipo = desc.match(/\\[tipo:([^\\]]+)\\]/i);\n  if (mTipo) tipo = mTipo[1].trim();\n  const tipoLower = tipo.toLowerCase();\n\n  if (tipoFiltro !== 'todos' && tipoLower !== tipoFiltro) continue;\n\n  const horaFormato = ev.start?.dateTime\n    ? new Date(ev.start.dateTime).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Guayaquil' })\n    : 'Todo el día';\n  const fechaFormato = new Date(startRaw).toLocaleDateString('es-EC', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Guayaquil' });\n\n  eventos.push({\n    hora: horaFormato,\n    fecha: fechaFormato,\n    tipo,\n    titulo: ev.summary || 'Sin título'\n  });\n}\n\nif (eventos.length === 0) {\n  const etiquetaTipo = tipoFiltro === 'todos' ? 'eventos' : `eventos de tipo ${tipoFiltro}`;\n  const fechaTexto = diaInicio.toLocaleDateString('es-EC', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Guayaquil' });\n  return [{ json: { resultado: `Para el ${fechaTexto} no tienes ${etiquetaTipo} registrados en tu calendario.` } }];\n}\n\n// Ordenar por hora\neventos.sort((a, b) => a.hora.localeCompare(b.hora));\n\nconst etiquetaTipo = tipoFiltro === 'todos' ? 'eventos' : `eventos de tipo ${tipoFiltro}`;\nconst fechaTexto = diaInicio.toLocaleDateString('es-EC', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Guayaquil' });\n\nlet texto = `Estos son tus ${etiquetaTipo} para el ${fechaTexto}:\\n\\n`;\nfor (const ev of eventos) {\n  texto += `- ${ev.hora} - ${ev.tipo}: ${ev.titulo}\\n`;\n}\n\nreturn [{ json: { resultado: texto.trim() } }];"
+        "jsCode": "const items = $input.all();\nconst wf = $('Ejecutar Workflow').item.json;\nconst dia = $('Calcular Día Consulta').item.json;\n\nconst diaInicio = new Date(dia.dia_inicio);\nconst diaFin = new Date(dia.dia_fin);\nconst tipoFiltro = String(dia.tipo_filtro || 'todos').toLowerCase();\nconst asesorPhone = (wf.telefono_asesor || '').trim();\n\nconst eventos = [];\n\nfor (const item of items) {\n  const ev = item.json;\n  const desc = ev.description || '';\n  const startRaw = ev.start?.dateTime || ev.start?.date;\n  if (!startRaw) continue;\n  const startDate = new Date(startRaw);\n  if (startDate < diaInicio || startDate > diaFin) continue;\n\n  if (asesorPhone) {\n    const m = desc.match(/\\[tel_asesor:([^\\]]+)\\]/);\n    const phone = m ? m[1].trim() : '';\n    if (phone !== asesorPhone) continue;\n  }\n\n  let tipo = 'evento';\n  const mTipo = desc.match(/\\[tipo:([^\\]]+)\\]/i);\n  if (mTipo) tipo = mTipo[1].trim();\n  const tipoLower = tipo.toLowerCase();\n\n  if (tipoFiltro !== 'todos' && tipoLower !== tipoFiltro) continue;\n\n  const horaFormato = ev.start?.dateTime\n    ? new Date(ev.start.dateTime).toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Guayaquil' })\n    : 'Todo el día';\n  const fechaFormato = new Date(startRaw).toLocaleDateString('es-EC', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Guayaquil' });\n\n  eventos.push({\n    hora: horaFormato,\n    fecha: fechaFormato,\n    tipo,\n    titulo: ev.summary || 'Sin título'\n  });\n}\n\nif (eventos.length === 0) {\n  const etiquetaTipo = tipoFiltro === 'todos' ? 'eventos' : `eventos de tipo ${tipoFiltro}`;\n  const fechaTexto = diaInicio.toLocaleDateString('es-EC', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Guayaquil' });\n  return [{ json: { resultado: `Para el ${fechaTexto} no tienes ${etiquetaTipo} registrados en tu calendario.` } }];\n}\n\n// Ordenar por hora\neventos.sort((a, b) => a.hora.localeCompare(b.hora));\n\nconst etiquetaTipo = tipoFiltro === 'todos' ? 'eventos' : `eventos de tipo ${tipoFiltro}`;\nconst fechaTexto = diaInicio.toLocaleDateString('es-EC', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric', timeZone: 'America/Guayaquil' });\n\nlet texto = `Estos son tus ${etiquetaTipo} para el ${fechaTexto}:\\n\\n`;\nfor (const ev of eventos) {\n  texto += `- ${ev.hora} - ${ev.tipo}: ${ev.titulo}\\n`;\n}\n\nreturn [{ json: { resultado: texto.trim() } }];"
       },
       "id": "8a4aa37d-ba4c-4fe3-af78-c30450906729",
       "name": "Filtrar Eventos Día y Tipo",
@@ -639,6 +639,10 @@
             {
               "name": "telefono_cliente_cita",
               "type": "any"
+            },
+            {
+              "name": "event_id",
+              "type": "any"
             }
           ]
         }
@@ -651,6 +655,90 @@
       ],
       "id": "22054a2a-ffac-40d6-8ada-58561ff7491e",
       "name": "Ejecutar Workflow"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "me1",
+              "leftValue": "={{ $('Ejecutar Workflow').item.json.modo || '' }}",
+              "rightValue": "eliminar",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "id": "cal-delete-001",
+      "name": "¿Modo Eliminar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        14144,
+        15600
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "calendar": {
+          "__rl": true,
+          "value": "primary",
+          "mode": "list",
+          "cachedResultName": "primary"
+        },
+        "eventId": "={{ $('Ejecutar Workflow').item.json.event_id }}"
+      },
+      "id": "cal-delete-002",
+      "name": "Eliminar Evento Calendario",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1.3,
+      "position": [
+        14400,
+        15600
+      ],
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "6lAsoTQnqERlsZNq",
+          "name": "Google Calendar account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "del-r1",
+              "name": "resultado",
+              "value": "=🗑️ El evento ha sido eliminado correctamente del calendario.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "cal-delete-003",
+      "name": "Resultado Eliminación",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        14640,
+        15600
+      ]
     }
   ],
   "pinData": {},
@@ -797,7 +885,7 @@
       "main": [
         [
           {
-            "node": "¿Modo Listar?",
+            "node": "¿Modo Eliminar?",
             "type": "main",
             "index": 0
           }
@@ -838,6 +926,35 @@
         [
           {
             "node": "Filtrar Eventos Día y Tipo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Modo Eliminar?": {
+      "main": [
+        [
+          {
+            "node": "Eliminar Evento Calendario",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Modo Listar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Eliminar Evento Calendario": {
+      "main": [
+        [
+          {
+            "node": "Resultado Eliminación",
             "type": "main",
             "index": 0
           }
